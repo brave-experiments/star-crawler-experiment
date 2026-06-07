@@ -1,0 +1,16 @@
+{
+    "variations": {
+        "1": { "region": "US", "consent": "accept",    "resolution": [1920, 1080] },
+        "2": { "region": "US", "consent": "reject",    "resolution": [1920, 1080] },
+        "3": { "region": "US", "consent": "no-action", "resolution": [1920, 1080] },
+        "4": { "region": "US", "consent": "accept",    "resolution": [1366, 768]  },
+        "5": { "region": "US", "consent": "reject",    "resolution": [1366, 768]  },
+        "6": { "region": "US", "consent": "no-action", "resolution": [1366, 768]  }
+    },
+    "serialization_points": [
+        "domcontentloaded",
+        "networkidle0",
+        "networkidle0+30s"
+    ],
+    "consent_extension_path": "./Consent-O-Matic"
+}   
