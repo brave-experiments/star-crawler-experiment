@@ -134,17 +134,21 @@ function build_browser_args() {
     const browser_args = [
         '--disable-blink-features=AutomationControlled',
         '--disable-field-trial-config',
-        '--disable-features=VizDisplayCompositor,HttpsUpgrades,ThirdPartyStoragePartitioning',
+        '--disable-features=VizDisplayCompositor,HttpsUpgrades,ThirdPartyStoragePartitioning,Translate,OptimizationHints',
         '--force-color-profile=srgb',
         '--font-render-hinting=none',
         '--disable-sync',
         '--no-first-run',
+        '--no-default-browser-check',
+        '--disable-default-apps',
+        '--disable-extensions-file-access-check',
         '--disable-background-networking',
         '--disable-component-update',
         '--disable-client-side-phishing-detection',
         '--disable-breakpad',
         '--metrics-recording-only',
         '--disable-popup-blocking',
+        '--disable-back-forward-cache',
         `--window-size=${viewport_width},${viewport_height}`,
     ];
 
