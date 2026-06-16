@@ -1,0 +1,8 @@
+output/
+consent-accept/
+consent-reject/
+Consent-O-Matic/build/
+Consent-O-Matic/dist/
+Consent-O-Matic/node_modules/
+node_modules/
+profiles/
