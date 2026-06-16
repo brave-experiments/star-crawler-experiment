@@ -1,15 +1,15 @@
 {
     "variations": {
-        "1": { "region": "US", "consent": "accept",    "resolution": [1920, 1080] },
-        "2": { "region": "US", "consent": "reject",    "resolution": [1920, 1080] },
-        "3": { "region": "US", "consent": "no-action", "resolution": [1920, 1080] },
-        "4": { "region": "US", "consent": "accept",    "resolution": [1366, 768]  },
-        "5": { "region": "US", "consent": "reject",    "resolution": [1366, 768]  },
-        "6": { "region": "US", "consent": "no-action", "resolution": [1366, 768]  }
+        "1": { "region": "US", "profile_path": "./profiles/us-profile", "consent": "reject",    "resolution": [1920, 1080] },
+        "2": { "region": "UK", "profile_path": "./profiles/uk-profile", "consent": "reject",    "resolution": [1920, 1080] },
+        "3": { "region": "JP", "profile_path": "./profiles/jp-profile", "consent": "reject",    "resolution": [1920, 1080] },
+
+        "4": { "region": "US", "profile_path": "./profiles/us-profile", "consent": "accept",    "resolution": [1920, 1080] },
+        "5": { "region": "US", "profile_path": "./profiles/us-profile", "consent": "content-filtering", "resolution": [1920, 1080] },
+
+
+        "6": { "region": "US", "profile_path": "./profiles/us-profile", "consent": "reject",    "resolution": [390, 844]  },
+        "7": { "region": "US", "profile_path": "./profiles/us-profile", "consent": "reject",    "resolution": [768, 1024]  }
     },
-    "serialization_points": [
-        "page_load",
-        "five_seconds",
-        "network_idle"
-    ]
+    "serialization_points": ["page_load", "five_seconds", "network_idle"]
 }
