@@ -1,3 +1,5 @@
+consent-built.zip
+crux_latest/current.csv
 output/
 consent-accept/
 consent-reject/
@@ -6,3 +8,5 @@ Consent-O-Matic/dist/
 Consent-O-Matic/node_modules/
 node_modules/
 profiles/
+ublock-origin/
+testua.js

@@ -1,3 +1,5 @@
+// TODO: UPDATE THE PROFILES FOR THE WINDOWS EXECUTION (CREATE A UNIQUE PROFILE FOR EACH VARIATION SO WE ARE NOT LOGGED OUT FROM NORDVPN)
+//       AND ALSO UPDATE THE STATIC PATHS (windows path conversion is different)
 const puppeteer = require('puppeteer-extra');
 const stealth_plugin = require('puppeteer-extra-plugin-stealth');
 const fs = require('fs');
@@ -5,7 +7,11 @@ const path = require('path');
 const { spawn } = require('child_process');
 const http = require('http');
 
-puppeteer.use(stealth_plugin());
+
+// override default UA provided by the stealth plugin
+const stealth = stealth_plugin();
+stealth.enabledEvasions.delete('user-agent-override');
+puppeteer.use(stealth);
 
 process.on('unhandledRejection', (reason) => { if(reason && reason.name === 'TargetCloseError') return; throw reason; });
 
@@ -16,6 +22,24 @@ const network_idle_deadline_milliseconds = 30000; // measured from the load even
 const brave_executable_path = '/usr/bin/brave-browser';
 
 const args = process.argv.slice(2);
+
+
+
+// https://deviceatlas.com/blog/list-of-user-agent-strings
+
+
+// mobile UA string : Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36
+// tablet UA string : Mozilla/5.0 (Linux; Android 12; SM-X906C Build/QP1A.190711.020; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/80.0.3987.119 Mobile Safari/537.36
+
+/**
+ * Changing the UA string and resolution might raise ambiguous questions about the nature of the device browsing
+ * for example the UA string might indicate a mobile device but the OS characteristics a Windows 10 x86 machine
+ * 
+ * 
+ * We could use: https://pptr.dev/api/puppeteer.page.emulate that would give us the apprpriate configurations 
+ */
+
+
 
 
 // ====================================================================================================================================================
@@ -54,10 +78,11 @@ if(!variation){
     process.exit(1);
 }
 
-const { region, profile_path, consent, resolution } = variation;
+
+
+
+const { region, profile_path, consent, resolution, device } = variation;
 const [viewport_width, viewport_height] = resolution;
-
-
 
 
 // seed profile to launch from: the CLI flag overrides the config if provided,
@@ -71,6 +96,102 @@ console.log(
     `Variation ${variation_id}: region=${region} consent=${consent} ` +
     `resolution=${viewport_width}x${viewport_height} profile=${seed_profile_path}`
 );
+
+
+
+
+
+
+
+// =========================================================================================================================================================
+// device emulation profiles for the mobile and tablet variations. Each profile is a coherent Chromium-engine identity (UA, client-hint metadata, legacy platform, touch, DPR) 
+// so the browser presents as a real Android device rather than a desktop with a swapped UA string
+// ----> Width and height come from the variation's resolution, not from here.
+const chrome_brands = [
+    { brand: 'Chromium', version: '144' },
+    { brand: 'Google Chrome', version: '144' },
+    { brand: 'Not?A_Brand', version: '24' }
+];
+
+function build_user_agent_metadata(platform, platform_version, model, mobile, architecture, bitness){
+    return {
+        brands: chrome_brands,
+        fullVersionList: chrome_brands.map(brand => ({ brand: brand.brand, version: `${brand.version}.0.0.0` })),
+        platform,
+        platformVersion: platform_version,
+        architecture,
+        bitness,
+        model,
+        mobile,
+        wow64: false
+    };
+}
+
+
+// device emulated "profiles" for tablet and mobile devices
+const device_profiles = {
+    mobile: {
+        user_agent: 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Mobile Safari/537.36',
+        platform_string: 'Linux armv8l',
+        max_touch_points: 5,
+        device_scale_factor: 2.625,
+        is_mobile: true,
+        has_touch: true,
+        ua_metadata: build_user_agent_metadata('Android', '13.0.0', 'Pixel 7', true, '', '')
+    },
+    tablet: {
+        user_agent: 'Mozilla/5.0 (Linux; Android 13; SM-X700) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36',
+        platform_string: 'Linux armv8l',
+        max_touch_points: 5,
+        device_scale_factor: 2,
+        is_mobile: true,
+        has_touch: true,
+        ua_metadata: build_user_agent_metadata('Android', '13.0.0', 'SM-X700', false, '', '')
+    }
+};
+
+
+/**
+ * Apply a device profile to a fresh page. navigator.platform and maxTouchPoints are overridden on
+ * every new document because setUserAgent metadata does not set them. The viewport carries the device 
+ * DPR, mobile and touch flags at the variation's resolution, and the UA is set with client-hint metadata
+ */
+async function apply_device_profile(page, device_profile){
+    await page.evaluateOnNewDocument((platform_string, max_touch_points) => {
+        Object.defineProperty(navigator, 'platform', { get: () => platform_string });
+        Object.defineProperty(navigator, 'maxTouchPoints', { get: () => max_touch_points });
+    }, device_profile.platform_string, device_profile.max_touch_points);
+
+    await page.setViewport({
+        width: viewport_width,
+        height: viewport_height,
+        deviceScaleFactor: device_profile.device_scale_factor,
+        isMobile: device_profile.is_mobile,
+        hasTouch: device_profile.has_touch
+    });
+
+    await page.setUserAgent(device_profile.user_agent, device_profile.ua_metadata);
+}
+// =========================================================================================================================================================
+
+// ===================================================================================================================
+// Network error categorisation: 
+// Catch net::ERR_* string into a small set of causes so failures are analysable. 
+// "blocked" is ERR_BLOCKED_BY_CLIENT, the uBlock signal for the content-filtering; "proxy" is ERR_TUNNEL_CONNECTION_FAILED, 
+// the NordVPN exit failing to reach the host.
+function categorize_network_error(error_text){
+    if(!error_text) return null;
+    const text = error_text.toUpperCase();
+    if(text.includes('NAME_NOT_RESOLVED') || text.includes('NAME_RESOLUTION') || text.includes('DNS')) return 'dns';
+    if(text.includes('CERT') || text.includes('SSL')) return 'tls';
+    if(text.includes('TUNNEL_CONNECTION_FAILED') || text.includes('PROXY')) return 'proxy';
+    if(text.includes('CONNECTION_REFUSED') || text.includes('CONNECTION_RESET') || text.includes('CONNECTION_CLOSED') || text.includes('CONNECTION_FAILED')) return 'connection';
+    if(text.includes('TIMED_OUT') || text.includes('TIMEOUT')) return 'timeout';
+    if(text.includes('BLOCKED_BY_CLIENT')) return 'blocked';
+    if(text.includes('ABORTED')) return 'aborted';
+    return 'other';
+}
+
 
 
 
@@ -135,7 +256,7 @@ function prepare_profile_directory(){
 
 // ------> directory naming e.g. domain.example.com is stored at ./domain_example_com
 function sanitize_for_filesystem(value){
-    return value.replace(/^https?:\/\//, '').replace(/[^a-zA-Z0-9.]/g, '_');
+    return value.replace(/^https?:\/\//, '').replace(/[^a-zA-Z0-9]/g, '_');
 }
 
 // TODO: See if we missed any flag to ensure reproducability across crawls
@@ -172,8 +293,11 @@ function build_browser_args(){
     ];
 
     // Consent-O-Matic (unless no-action) plus any --extension.
+    const ublock_extension_path = path.join(__dirname, 'ublock-origin');
     const extension_paths = [];
-    if(consent !== 'no-action'){
+    if(consent === 'content-filtering'){
+        extension_paths.push(ublock_extension_path);
+    } else if(consent !== 'no-action'){
         extension_paths.push(consent_extension_path);
     }
 
@@ -234,8 +358,22 @@ function serialize_to(point_name, domain_output_directory, html_content){
     return html_content.length;
 }
 
-
-
+// ===================================================================================================================
+// IP veirification guard: in case we lose nordvpn connectivity terminate but keep index of termination so 
+// we can continue from there
+async function get_exit_ip(browser){
+    const page = await browser.newPage();
+    try {
+        await page.goto('https://api.ipify.org?format=json', { waitUntil: 'domcontentloaded', timeout: 20000 });
+        const body = await page.evaluate(() => document.body.innerText);
+        return JSON.parse(body).ip;
+    } catch (error){
+        console.warn(`  Could not determine exit IP: ${error.message}`);
+        return null;
+    } finally {
+        await page.close().catch(() => {});
+    }
+}
 
 
 
@@ -246,7 +384,7 @@ function serialize_to(point_name, domain_output_directory, html_content){
 
 
 //Core crawl: one visit =========> 6 SERIALIZATION POINTS
-async function crawl_domain(domain, browser){
+async function crawl_domain(domain, browser, index){
 
 
     const url = domain.startsWith('http') ? domain : `https://${domain}`;
@@ -268,28 +406,44 @@ async function crawl_domain(domain, browser){
         region,
         consent,
         resolution: `${viewport_width}x${viewport_height}`,
+        device: device || 'desktop',
         serialization_points,
         success: false,
         failure_reason: null,
         http_status: null,
         http_error: false,
+        network_error: null,
+        error_category: null,
+        tls: null,
         user_agent: null,
         load_event_fired: false,
         networkidle2_timed_out: false,
         networkidle0_timed_out: false,
+        dwell_time_milliseconds: null,
+        failed_request_total: 0,
+        failed_requests_by_error: {},
+        failed_requests_by_category: {},
+        error_response_count: 0,
         html_size_bytes: {}
     };
 
     
     
     
-    console.log(`\n--- ${domain} ---`);
+    console.log(`\nCrawling: [${index}] ---> ${domain}`);
     const page = await browser.newPage();
 
 
-    await page.setViewport({ width: viewport_width, height: viewport_height });
+    const active_device_profile = device ? device_profiles[device] : null;
+    if(active_device_profile){
+        await apply_device_profile(page, active_device_profile);
+    } else {
+        await page.setViewport({ width: viewport_width, height: viewport_height });
+    }
     await page.setExtraHTTPHeaders({ 'Referer': 'https://www.google.com' });
     
+
+
     
     // lets see what UAs we get
     metadata.user_agent = await page.evaluate(() => navigator.userAgent).catch(() => null);
@@ -297,6 +451,9 @@ async function crawl_domain(domain, browser){
     // keep the FINAL main document response so status and raw server HTML survive even a later timeout
     let main_document_response = null;
     page.on('response', (response) => {
+        if(response.status() >= 400){
+            metadata.error_response_count += 1;
+        }
         if(response.request().isNavigationRequest() &&
             response.frame() === page.mainFrame() &&
             response.request().resourceType() === 'document'){
@@ -304,11 +461,31 @@ async function crawl_domain(domain, browser){
         }
     });
 
+    // tally every failed request by error and by category. ERR_BLOCKED_BY_CLIENT here is the uBlock signal
+    let main_navigation_error = null;
+    page.on('requestfailed', (request) => {
+        const error_text = request.failure() ? request.failure().errorText : 'unknown';
+        metadata.failed_request_total += 1;
+        metadata.failed_requests_by_error[error_text] = (metadata.failed_requests_by_error[error_text] || 0) + 1;
+        const error_category = categorize_network_error(error_text);
+        metadata.failed_requests_by_category[error_category] = (metadata.failed_requests_by_category[error_category] || 0) + 1;
+        if(request.isNavigationRequest() &&
+            request.frame() === page.mainFrame() &&
+            request.resourceType() === 'document'){
+            main_navigation_error = error_text;
+        }
+    });
+
     // load fires after domcontentloaded ----------->  wait on it and record whether it fired
     let load_event_fired = false;
     const load_event_promise = new Promise((resolve) => page.once('load', () => { load_event_fired = true; resolve(); }));
 
+
+
+    let navigation_start_timestamp = null;
     try {
+        //dwell time on page 
+        navigation_start_timestamp = Date.now();
         // return at domcontentloaded so a slow load cannot block the later captures
         console.log(`  Navigating to ${url}...`);
         const navigation_response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: navigation_timeout_milliseconds });
@@ -317,6 +494,17 @@ async function crawl_domain(domain, browser){
         if(status_response){
             metadata.http_status = status_response.status();
             metadata.http_error = status_response.status() >= 400;
+
+            const security_details = status_response.securityDetails();
+            if(security_details){
+                metadata.tls = {
+                    protocol: security_details.protocol(),
+                    issuer: security_details.issuer(),
+                    subject_name: security_details.subjectName(),
+                    valid_from: security_details.validFrom(),
+                    valid_to: security_details.validTo()
+                };
+            }
 
             // [SERIALIZATION POINT 1]: raw server HTML before client side rendering
             const initial_response_html = await status_response.text().catch(() => null);
@@ -394,6 +582,8 @@ async function crawl_domain(domain, browser){
 
     } catch (error){
         metadata.failure_reason = error.message;
+        metadata.network_error = main_navigation_error || error.message;
+        metadata.error_category = categorize_network_error(metadata.network_error);
         console.warn(`  Failed: ${error.message}. Capturing exit-state HTML.`);
 
         if(main_document_response){
@@ -409,6 +599,11 @@ async function crawl_domain(domain, browser){
         }
 
     } finally {
+        
+        if(navigation_start_timestamp !== null){
+            metadata.dwell_time_milliseconds = Date.now() - navigation_start_timestamp;
+        }
+
         await page.close().catch(() => {});
     }
 
@@ -420,7 +615,6 @@ async function crawl_domain(domain, browser){
 
     return metadata;
 }
-
 
 
 
@@ -463,15 +657,21 @@ async function main(){
         process.exit(1);
     }
 
-    let domains = fs.readFileSync(domains_file, 'utf-8')
+let domains = fs.readFileSync(domains_file, 'utf-8')
         .split('\n')
         .map(line => line.trim())
         .filter(line => line.length > 0 && line !== 'origin,rank')
         .map(line => line.split(',')[0]);
 
+    const url_flag_index = args.indexOf('--url');
+    if(url_flag_index !== -1 && args[url_flag_index + 1]){
+        domains = [args[url_flag_index + 1]];
+    }
+
     if(provided_limit){
         domains = domains.slice(0, provided_limit);
     }
+
 
     console.log(`Loaded ${domains.length} domains`);
     prepare_profile_directory();
@@ -502,15 +702,40 @@ async function main(){
     };
     browser.on('targetcreated', () => { setTimeout(close_extension_pages, 1500); });
 
-
+    const expected_exit_ip = await get_exit_ip(browser);
+    if(!expected_exit_ip){
+        console.error('Could not establish a baseline exit IP. Aborting.');
+        await browser.close().catch(() => {});
+        brave_process.kill();
+        process.exit(1);
+    }
+    console.log(`Baseline exit IP for region ${region}: ${expected_exit_ip}`);
 
 
     const results = { successful: [], failed: [] };
     const error_log = {};
 
+    for (const [index, domain] of domains.entries()){
+        const observed_exit_ip = await get_exit_ip(browser);
+        if(observed_exit_ip && observed_exit_ip !== expected_exit_ip){
+            console.error(`\nREGION LOST before domain index ${index} (${domain}).`);
+            console.error(`  Expected exit IP ${expected_exit_ip}, now ${observed_exit_ip}.`);
+            console.error(`  Rebuild the profile with NordVPN logged in and resume from index ${index}.`);
+            fs.writeFileSync(
+                path.join(variation_directory, 'region_lost.json'),
+                JSON.stringify({
+                    stopped_at_index: index,
+                    stopped_at_domain: domain,
+                    expected_exit_ip,
+                    observed_exit_ip,
+                    timestamp: new Date().toISOString()
+                }, null, 2),
+                'utf-8'
+            );
+            break;
+        }
 
-    for (const domain of domains){
-        const result = await crawl_domain(domain, browser);
+        const result = await crawl_domain(domain, browser, index);
         if(result.success){
             results.successful.push(result.domain);
         } else {
