@@ -10,3 +10,5 @@ node_modules/
 profiles/
 ublock-origin/
 testua.js
+vpn_configs/
+Orchestrator/instances.json
