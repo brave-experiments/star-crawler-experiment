@@ -1,3 +1,5 @@
+// TODO: UPDATE THE PROFILES FOR THE WINDOWS EXECUTION (CREATE A UNIQUE PROFILE FOR EACH VARIATION SO WE ARE NOT LOGGED OUT FROM NORDVPN)
+//       AND ALSO UPDATE THE STATIC PATHS (windows path conversion is different)
 const puppeteer = require('puppeteer-extra');
 const stealth_plugin = require('puppeteer-extra-plugin-stealth');
 const fs = require('fs');
@@ -17,7 +19,7 @@ const navigation_timeout_milliseconds = 45000;
 const five_seconds_milliseconds = 5000;
 const network_idle_deadline_milliseconds = 30000; // measured from the load event
 
-const brave_executable_path = '/usr/bin/brave-browser';
+const brave_executable_path = 'C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe';
 
 const args = process.argv.slice(2);
 
@@ -62,15 +64,6 @@ const provided_limit = limit_flag_index !== -1 ? parseInt(args[limit_flag_index 
 
 const domains_flag_index = args.indexOf('--domains');
 const provided_domains_file = domains_flag_index !== -1 ? args[domains_flag_index + 1] : null;
-
-
-// worker index isolates parallel workers on the same machine: it only sets the debug port, nothing else
-const worker_flag_index = args.indexOf('--worker');
-const worker_index = worker_flag_index !== -1 ? parseInt(args[worker_flag_index + 1], 10) : 0;
-
-// skip the region/country check (used for local testing without the VPN up)
-const skip_region_flag_index = args.indexOf('--skip-region');
-const skip_region_check = skip_region_flag_index !== -1;
 // ====================================================================================================================================================
 
 
@@ -223,8 +216,7 @@ const serialization_points = ['initial_response', 'domcontentloaded', 'page_load
 
 //output dirs
 const variation_directory = path.join(__dirname, 'output', `variation_${variation_id}`);
-// profile is created fresh PER DOMAIN at websites/<domain>/profile and set inside the crawl loop
-let profile_directory = null;
+const profile_directory = path.join(variation_directory, 'profile');
 const websites_directory = path.join(variation_directory, 'websites');
 
 for (const directory of [variation_directory, websites_directory]){
@@ -251,9 +243,7 @@ function prepare_profile_directory(){
             console.error(`Seed profile not found at ${seed_profile_path}`);
             process.exit(1);
         }
-        fs.mkdirSync(profile_directory, { recursive: true });
-        // fs.cpSync(seed_profile_path, profile_directory, { recursive: true });
-        require('child_process').execSync(`cp -a "${seed_profile_path}/." "${profile_directory}/"`);
+        fs.cpSync(seed_profile_path, profile_directory, { recursive: true });
 
         for (const lock_file of ['SingletonLock', 'SingletonCookie', 'SingletonSocket']){
             fs.rmSync(path.join(profile_directory, lock_file), { force: true });
@@ -401,10 +391,10 @@ async function get_exit_ip(browser){
 
 
 // ===================================================================================================================
-// Browser lifecycle for the repeated-visit design: each repeat tears the browser down fully and relaunches,
+// Browser lifecycle for the repeated-visit design: each repeat tears the browser down and relaunches,
 // reusing the same profile copy so the NordVPN session is not duplicated. Region is confirmed by country
 // before each crawl because NordVPN can return a different in-region IP on each reconnect.
-const remote_debugging_port = 9222 + worker_index;
+const remote_debugging_port = 9222;
 const region_to_country = { US: 'US', UK: 'GB', JP: 'JP' };
 
 // exit IP and country through the browser, so it traverses the NordVPN proxy
@@ -790,7 +780,7 @@ async function main(){
 
 
     console.log(`Loaded ${domains.length} domains`);
-    console.log(`Worker ${worker_index} | debug port ${remote_debugging_port}`);
+    prepare_profile_directory();
 
 
     // each domain is visited repeat_count times. Every repeat tears the browser down and relaunches on the
@@ -803,29 +793,16 @@ async function main(){
     const wait_between_domains_milliseconds = 60000;
 
     const results = { successful: [], failed: [] };
-    const error_log = [];
+    const error_log = {};
 
     for (const [index, domain] of domains.entries()){
-
-        // fresh profile copy for THIS domain, seeded once and reused across its repeat_count runs
-        const sanitized_domain = sanitize_for_filesystem(domain);
-        profile_directory = path.join(websites_directory, sanitized_domain, 'profile');
-        prepare_profile_directory();
-
         for (let run_index = 1; run_index <= repeat_count; run_index++){
             console.log(`\n=== [${index}] ${domain} | run ${run_index}/${repeat_count} ===`);
 
             const { browser, brave_process } = await launch_browser();
 
-            let region_status;
-            if(skip_region_check){
-                const info = await get_exit_info(browser);
-                region_status = { ok: true, ip: info.ip, country: info.country };
-                console.log(`  exit ${region_status.ip} (${region_status.country}) [region check skipped]`);
-            } else {
-                region_status = await wait_for_region(browser, expected_country, 10);
-                console.log(`  exit ${region_status.ip} (${region_status.country}) ${region_status.ok ? 'in region' : 'REGION MISMATCH'}`);
-            }
+            const region_status = await wait_for_region(browser, expected_country, 10);
+            console.log(`  exit ${region_status.ip} (${region_status.country}) ${region_status.ok ? 'in region' : 'REGION MISMATCH'}`);
 
             if(region_status.ok){
                 const result = await crawl_domain(domain, browser, index, run_index);
@@ -834,11 +811,11 @@ async function main(){
                     results.successful.push(key);
                 } else {
                     results.failed.push({ domain: result.domain, run: run_index, error: result.failure_reason });
-                    error_log.push({ worker_index, domain: result.domain, run_index, error: String(result.failure_reason) });
+                    error_log[key] = String(result.failure_reason);
                 }
             } else {
                 console.warn(`  Region not confirmed, skipping crawl for run ${run_index}`);
-                error_log.push({ worker_index, domain, run_index, error: 'region not confirmed' });
+                error_log[`${domain} run ${run_index}`] = 'region not confirmed';
             }
 
             await close_browser(browser, brave_process);
@@ -859,7 +836,7 @@ async function main(){
 
 
     fs.writeFileSync(
-        path.join(variation_directory, `errors_worker_${worker_index}.json`),
+        path.join(variation_directory, 'errors.json'),
         JSON.stringify(error_log, null, 2),
         'utf-8'
     );
