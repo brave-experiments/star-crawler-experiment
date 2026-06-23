@@ -3,7 +3,7 @@ import json
 import time
 import threading
 
-PROJECT = r"C:\Users\Administrator\Desktop\star-crawler\windows_implementation"
+PROJECT = r"C:\Users\Administrator\Desktop\star-crawler-experiment"
 POLL_SECONDS = 10
 
 with open("instances.json") as instances_file:

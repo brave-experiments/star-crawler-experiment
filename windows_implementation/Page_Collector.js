@@ -1,5 +1,3 @@
-// TODO: UPDATE THE PROFILES FOR THE WINDOWS EXECUTION (CREATE A UNIQUE PROFILE FOR EACH VARIATION SO WE ARE NOT LOGGED OUT FROM NORDVPN)
-//       AND ALSO UPDATE THE STATIC PATHS (windows path conversion is different)
 const puppeteer = require('puppeteer-extra');
 const stealth_plugin = require('puppeteer-extra-plugin-stealth');
 const fs = require('fs');
@@ -64,6 +62,15 @@ const provided_limit = limit_flag_index !== -1 ? parseInt(args[limit_flag_index 
 
 const domains_flag_index = args.indexOf('--domains');
 const provided_domains_file = domains_flag_index !== -1 ? args[domains_flag_index + 1] : null;
+
+
+// worker index isolates parallel workers on the same machine: it only sets the debug port, nothing else
+const worker_flag_index = args.indexOf('--worker');
+const worker_index = worker_flag_index !== -1 ? parseInt(args[worker_flag_index + 1], 10) : 0;
+
+// skip the region/country check (used for local testing without the VPN up)
+const skip_region_flag_index = args.indexOf('--skip-region');
+const skip_region_check = skip_region_flag_index !== -1;
 // ====================================================================================================================================================
 
 
@@ -216,7 +223,8 @@ const serialization_points = ['initial_response', 'domcontentloaded', 'page_load
 
 //output dirs
 const variation_directory = path.join(__dirname, 'output', `variation_${variation_id}`);
-const profile_directory = path.join(variation_directory, 'profile');
+// profile is created fresh PER DOMAIN at websites/<domain>/profile and set inside the crawl loop
+let profile_directory = null;
 const websites_directory = path.join(variation_directory, 'websites');
 
 for (const directory of [variation_directory, websites_directory]){
@@ -243,6 +251,7 @@ function prepare_profile_directory(){
             console.error(`Seed profile not found at ${seed_profile_path}`);
             process.exit(1);
         }
+        // Windows has no cp; fs.cpSync recursively copies the seed profile and creates the dir
         fs.cpSync(seed_profile_path, profile_directory, { recursive: true });
 
         for (const lock_file of ['SingletonLock', 'SingletonCookie', 'SingletonSocket']){
@@ -293,6 +302,10 @@ function build_browser_args(){
         '--metrics-recording-only',
         '--disable-popup-blocking',
         `--window-size=${viewport_width},${viewport_height}`,
+        '--disable-crash-reporter',
+        '--no-crashpad',
+        '--hide-crash-restore-bubble',
+        '--disable-session-crashed-bubble'
     ];
 
     // Consent-O-Matic (unless no-action) plus any --extension.
@@ -391,11 +404,31 @@ async function get_exit_ip(browser){
 
 
 // ===================================================================================================================
-// Browser lifecycle for the repeated-visit design: each repeat tears the browser down and relaunches,
+// Browser lifecycle for the repeated-visit design: each repeat tears the browser down fully and relaunches,
 // reusing the same profile copy so the NordVPN session is not duplicated. Region is confirmed by country
 // before each crawl because NordVPN can return a different in-region IP on each reconnect.
-const remote_debugging_port = 9222;
+const remote_debugging_port = 9222 + worker_index;
 const region_to_country = { US: 'US', UK: 'GB', JP: 'JP' };
+
+// before each launch, force the profile to open fresh: mark it as cleanly exited (so Brave does not
+// enter crash-restore) and set restore-on-startup to the New Tab page (so previously open tabs, e.g.
+// the crawl tab from the last run, are never reopened and do not accumulate across relaunches)
+function force_fresh_session(){
+    const preferences_path = path.join(profile_directory, 'Default', 'Preferences');
+    if(!fs.existsSync(preferences_path)) return;
+    try {
+        const preferences = JSON.parse(fs.readFileSync(preferences_path, 'utf-8'));
+
+        preferences.profile = preferences.profile || {};
+        preferences.profile.exit_type = 'Normal';
+        preferences.profile.exited_cleanly = true;
+
+        preferences.session = preferences.session || {};
+        preferences.session.restore_on_startup = 5; // 5 = open the New Tab page, not the previous session
+
+        fs.writeFileSync(preferences_path, JSON.stringify(preferences), 'utf-8');
+    } catch (error){}
+}
 
 // exit IP and country through the browser, so it traverses the NordVPN proxy
 async function get_exit_info(browser){
@@ -438,6 +471,7 @@ function strip_singleton_locks(){
 // spawn Brave on the shared profile and connect
 async function launch_browser(){
     strip_singleton_locks();
+    force_fresh_session();
     const brave_process = spawn(brave_executable_path, [
         `--user-data-dir=${profile_directory}`,
         `--remote-debugging-port=${remote_debugging_port}`,
@@ -451,31 +485,35 @@ async function launch_browser(){
     });
 
     browser.on('targetcreated', () => { setTimeout(async () => {
-        for (const open_page of await browser.pages()){
-            if(open_page.url().startsWith('chrome-extension://')){
-                await open_page.close().catch(() => {});
+        try {
+            for (const open_page of await browser.pages()){
+                let page_url = '';
+                try { page_url = open_page.url(); } catch (error){ continue; }
+                if(page_url.startsWith('chrome-extension://')){
+                    await open_page.close().catch(() => {});
+                }
             }
-        }
+        } catch (error){}
     }, 1500); });
 
     return { browser, brave_process };
 }
 
-// close the browser and make sure the process is gone before the next launch reuses the port and profile
+// close the browser FULLY before the next launch. browser.close() asks Brave to quit, but the spawned
+// process can return before the browser is actually gone, so we also kill this worker's process tree by
+// pid and only return once the debug port stops answering (the real signal the browser is gone). killing
+// by pid (this worker's brave_process) never touches the other parallel workers' browsers.
 async function close_browser(browser, brave_process){
     await browser.close().catch(() => {});
-    await new Promise((resolve) => {
-        if(brave_process.exitCode !== null || brave_process.signalCode !== null){
-            return resolve();
-        }
-        const kill_timeout = setTimeout(() => {
-            try { brave_process.kill('SIGKILL'); } catch(error){}
-            resolve();
-        }, 5000);
-        brave_process.once('exit', () => { clearTimeout(kill_timeout); resolve(); });
-        brave_process.kill();
-    });
+
+    try {
+        require('child_process').execSync(`taskkill /pid ${brave_process.pid} /T /F`, { stdio: 'ignore' });
+    } catch (error){}
+
     await wait_for_port_free(remote_debugging_port);
+
+    // give Windows a moment to release the profile lock and socket before the next launch
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 }
 
 
@@ -780,7 +818,7 @@ async function main(){
 
 
     console.log(`Loaded ${domains.length} domains`);
-    prepare_profile_directory();
+    console.log(`Worker ${worker_index} | debug port ${remote_debugging_port}`);
 
 
     // each domain is visited repeat_count times. Every repeat tears the browser down and relaunches on the
@@ -793,16 +831,29 @@ async function main(){
     const wait_between_domains_milliseconds = 60000;
 
     const results = { successful: [], failed: [] };
-    const error_log = {};
+    const error_log = [];
 
     for (const [index, domain] of domains.entries()){
+
+        // fresh profile copy for THIS domain, seeded once and reused across its repeat_count runs
+        const sanitized_domain = sanitize_for_filesystem(domain);
+        profile_directory = path.join(websites_directory, sanitized_domain, 'profile');
+        prepare_profile_directory();
+
         for (let run_index = 1; run_index <= repeat_count; run_index++){
             console.log(`\n=== [${index}] ${domain} | run ${run_index}/${repeat_count} ===`);
 
             const { browser, brave_process } = await launch_browser();
 
-            const region_status = await wait_for_region(browser, expected_country, 10);
-            console.log(`  exit ${region_status.ip} (${region_status.country}) ${region_status.ok ? 'in region' : 'REGION MISMATCH'}`);
+            let region_status;
+            if(skip_region_check){
+                const info = await get_exit_info(browser);
+                region_status = { ok: true, ip: info.ip, country: info.country };
+                console.log(`  exit ${region_status.ip} (${region_status.country}) [region check skipped]`);
+            } else {
+                region_status = await wait_for_region(browser, expected_country, 10);
+                console.log(`  exit ${region_status.ip} (${region_status.country}) ${region_status.ok ? 'in region' : 'REGION MISMATCH'}`);
+            }
 
             if(region_status.ok){
                 const result = await crawl_domain(domain, browser, index, run_index);
@@ -811,11 +862,11 @@ async function main(){
                     results.successful.push(key);
                 } else {
                     results.failed.push({ domain: result.domain, run: run_index, error: result.failure_reason });
-                    error_log[key] = String(result.failure_reason);
+                    error_log.push({ worker_index, domain: result.domain, run_index, error: String(result.failure_reason) });
                 }
             } else {
                 console.warn(`  Region not confirmed, skipping crawl for run ${run_index}`);
-                error_log[`${domain} run ${run_index}`] = 'region not confirmed';
+                error_log.push({ worker_index, domain, run_index, error: 'region not confirmed' });
             }
 
             await close_browser(browser, brave_process);
@@ -836,7 +887,7 @@ async function main(){
 
 
     fs.writeFileSync(
-        path.join(variation_directory, 'errors.json'),
+        path.join(variation_directory, `errors_worker_${worker_index}.json`),
         JSON.stringify(error_log, null, 2),
         'utf-8'
     );
