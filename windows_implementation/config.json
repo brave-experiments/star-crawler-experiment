@@ -1,0 +1,14 @@
+{
+    "variations": {
+        "1": { "region": "US", "profile_path": "./profiles/variation_1_us",        "consent": "reject",           "resolution": [1920, 1080] },
+        "2": { "region": "UK", "profile_path": "./profiles/variation_2_uk",        "consent": "reject",           "resolution": [1920, 1080] },
+        "3": { "region": "JP", "profile_path": "./profiles/variation_3_jp",        "consent": "reject",           "resolution": [1920, 1080] },
+
+        "4": { "region": "US", "profile_path": "./profiles/variation_4_us_accept", "consent": "accept",           "resolution": [1920, 1080] },
+        "5": { "region": "US", "profile_path": "./profiles/variation_5_us_ublock", "consent": "content-filtering", "resolution": [1920, 1080] },
+
+        "6": { "region": "US", "profile_path": "./profiles/variation_6_us_mobile", "consent": "reject",           "resolution": [390, 844],  "device": "mobile" },
+        "7": { "region": "US", "profile_path": "./profiles/variation_7_us_tablet", "consent": "reject",           "resolution": [768, 1024], "device": "tablet" }
+    },
+    "serialization_points": ["page_load", "five_seconds", "network_idle"]
+}

@@ -303,6 +303,10 @@ function build_browser_args(){
         '--metrics-recording-only',
         '--disable-popup-blocking',
         `--window-size=${viewport_width},${viewport_height}`,
+        '--disable-crash-reporter',
+        '--no-crashpad',
+        '--hide-crash-restore-bubble',
+        '--disable-session-crashed-bubble'
     ];
 
     // Consent-O-Matic (unless no-action) plus any --extension.
@@ -407,6 +411,26 @@ async function get_exit_ip(browser){
 const remote_debugging_port = 9222 + worker_index;
 const region_to_country = { US: 'US', UK: 'GB', JP: 'JP' };
 
+// before each launch, force the profile to open fresh: mark it as cleanly exited (so Brave does not
+// enter crash-restore) and set restore-on-startup to the New Tab page (so previously open tabs, e.g.
+// the crawl tab from the last run, are never reopened and do not accumulate across relaunches)
+function force_fresh_session(){
+    const preferences_path = path.join(profile_directory, 'Default', 'Preferences');
+    if(!fs.existsSync(preferences_path)) return;
+    try {
+        const preferences = JSON.parse(fs.readFileSync(preferences_path, 'utf-8'));
+
+        preferences.profile = preferences.profile || {};
+        preferences.profile.exit_type = 'Normal';
+        preferences.profile.exited_cleanly = true;
+
+        preferences.session = preferences.session || {};
+        preferences.session.restore_on_startup = 5; // 5 = open the New Tab page, not the previous session
+
+        fs.writeFileSync(preferences_path, JSON.stringify(preferences), 'utf-8');
+    } catch (error){}
+}
+
 // exit IP and country through the browser, so it traverses the NordVPN proxy
 async function get_exit_info(browser){
     const page = await browser.newPage();
@@ -448,11 +472,12 @@ function strip_singleton_locks(){
 // spawn Brave on the shared profile and connect
 async function launch_browser(){
     strip_singleton_locks();
+    force_fresh_session();
     const brave_process = spawn(brave_executable_path, [
         `--user-data-dir=${profile_directory}`,
         `--remote-debugging-port=${remote_debugging_port}`,
         ...build_browser_args(),
-    ], { stdio: 'ignore' });
+    ], { stdio: 'ignore', detached: true });
 
     await wait_for_debugger(remote_debugging_port);
     const browser = await puppeteer.connect({
@@ -461,31 +486,37 @@ async function launch_browser(){
     });
 
     browser.on('targetcreated', () => { setTimeout(async () => {
-        for (const open_page of await browser.pages()){
-            if(open_page.url().startsWith('chrome-extension://')){
-                await open_page.close().catch(() => {});
+        try {
+            for (const open_page of await browser.pages()){
+                let page_url = '';
+                try { page_url = open_page.url(); } catch (error){ continue; }
+                if(page_url.startsWith('chrome-extension://')){
+                    await open_page.close().catch(() => {});
+                }
             }
-        }
+        } catch (error){}
     }, 1500); });
 
     return { browser, brave_process };
 }
 
-// close the browser and make sure the process is gone before the next launch reuses the port and profile
+// close the browser FULLY before the next launch. browser.close() asks Brave to quit, but the spawned
+// process can return before the browser is actually gone, so we also kill this worker's process tree by
+// pid and only return once the debug port stops answering (the real signal the browser is gone). killing
+// by pid (this worker's brave_process) never touches the other parallel workers' browsers.
 async function close_browser(browser, brave_process){
     await browser.close().catch(() => {});
-    await new Promise((resolve) => {
-        if(brave_process.exitCode !== null || brave_process.signalCode !== null){
-            return resolve();
-        }
-        const kill_timeout = setTimeout(() => {
-            try { brave_process.kill('SIGKILL'); } catch(error){}
-            resolve();
-        }, 5000);
-        brave_process.once('exit', () => { clearTimeout(kill_timeout); resolve(); });
-        brave_process.kill();
-    });
+
+    try {
+        process.kill(-brave_process.pid, 'SIGKILL');
+    } catch (error){
+        try { brave_process.kill('SIGKILL'); } catch (inner_error){}
+    }
+
     await wait_for_port_free(remote_debugging_port);
+
+    // give the OS a moment to release the profile lock and socket before the next launch
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 }
 
 
