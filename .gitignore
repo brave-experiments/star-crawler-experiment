@@ -12,3 +12,6 @@ ublock-origin/
 testua.js
 vpn_configs/
 Orchestrator/instances.json
+Orchestrator/current_url_*.txt
+Orchestrator/run_index_*.txt
+Orchestrator/variation_*.txt

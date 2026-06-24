@@ -25,4 +25,3 @@ with open(batches_path, 'w', encoding='utf-8') as output_file:
     json.dump(batches, output_file, indent=2)
     output_file.write('\n')
 
-print(f'Read {len(domains)} domains, wrote {len(batches)} batches to {batches_path}')
