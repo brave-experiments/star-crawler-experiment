@@ -64,9 +64,16 @@ const domains_flag_index = args.indexOf('--domains');
 const provided_domains_file = domains_flag_index !== -1 ? args[domains_flag_index + 1] : null;
 
 
-// worker index isolates parallel workers on the same machine: it only sets the debug port, nothing else
-const worker_flag_index = args.indexOf('--worker');
-const worker_index = worker_flag_index !== -1 ? parseInt(args[worker_flag_index + 1], 10) : 0;
+// run index identifies WHICH of the synchronized visits this invocation performs (1..N). The
+// orchestrator drives the visit loop across all instances and passes the run index per visit, so visit
+// N happens at the same time on every box. Each visit is an independent person: its own fresh profile.
+const run_index_flag_index = args.indexOf('--run-index');
+const run_index = run_index_flag_index !== -1 ? parseInt(args[run_index_flag_index + 1], 10) : 1;
+
+// delete this visit's profile after the crawl (off by default; profiles are kept for inspection). The
+// HTML and metadata are always kept; only the (large) profile directory is removed when this is set.
+const delete_profile_flag_index = args.indexOf('--delete-profile');
+const delete_profile_after = delete_profile_flag_index !== -1;
 
 // skip the region/country check (used for local testing without the VPN up)
 const skip_region_flag_index = args.indexOf('--skip-region');
@@ -404,10 +411,10 @@ async function get_exit_ip(browser){
 
 
 // ===================================================================================================================
-// Browser lifecycle for the repeated-visit design: each repeat tears the browser down fully and relaunches,
-// reusing the same profile copy so the NordVPN session is not duplicated. Region is confirmed by country
-// before each crawl because NordVPN can return a different in-region IP on each reconnect.
-const remote_debugging_port = 9222 + worker_index;
+// Browser lifecycle: this invocation performs ONE visit. It launches Brave on a freshly-seeded profile
+// (an independent person), confirms the exit country (NordVPN can return a different in-region IP on each
+// reconnect), crawls once, and tears the browser down fully.
+const remote_debugging_port = 9222; // one Brave per box now, so a fixed port is fine
 const region_to_country = { US: 'US', UK: 'GB', JP: 'JP' };
 
 // before each launch, force the profile to open fresh: mark it as cleanly exited (so Brave does not
@@ -818,88 +825,64 @@ async function main(){
 
 
     console.log(`Loaded ${domains.length} domains`);
-    console.log(`Worker ${worker_index} | debug port ${remote_debugging_port}`);
+    console.log(`Run index ${run_index} | debug port ${remote_debugging_port}`);
 
-
-    // each domain is visited repeat_count times. Every repeat tears the browser down and relaunches on the
-    // same profile copy, so the visits are independent at the browser level without duplicating the NordVPN session.
-    const repeat_count = 9;
+    // ONE visit per invocation. The orchestrator drives the visit loop (1..N) across all instances and
+    // invokes this once per visit, so visit N happens at the same time on every box. This process performs
+    // exactly run_index's visit of the single target domain.
     const expected_country = region_to_country[region] || region;
 
-    // pacing between launches so the NordVPN extension is not reconnecting too rapidly
-    const wait_between_repeats_milliseconds = 30000;
-    const wait_between_domains_milliseconds = 60000;
-
-    const results = { successful: [], failed: [] };
+    // one domain per invocation in the synchronized design (the orchestrator feeds a single URL at a time)
+    const domain = domains[0];
+    const index = 0;
     const error_log = [];
+    let succeeded = false;
 
-    for (const [index, domain] of domains.entries()){
+    // fresh, independent profile for THIS visit (a distinct "person"): seeded from the pristine region
+    // seed, never reused across visits, so no cookies/storage carry over between the 10 visits.
+    const sanitized_domain = sanitize_for_filesystem(domain);
+    profile_directory = path.join(websites_directory, sanitized_domain, `run_${run_index}`, 'profile');
+    prepare_profile_directory();
 
-        // fresh profile copy for THIS domain, seeded once and reused across its repeat_count runs
-        const sanitized_domain = sanitize_for_filesystem(domain);
-        profile_directory = path.join(websites_directory, sanitized_domain, 'profile');
-        prepare_profile_directory();
+    console.log(`\n=== ${domain} | visit ${run_index} ===`);
 
-        for (let run_index = 1; run_index <= repeat_count; run_index++){
-            console.log(`\n=== [${index}] ${domain} | run ${run_index}/${repeat_count} ===`);
+    const { browser, brave_process } = await launch_browser();
 
-            const { browser, brave_process } = await launch_browser();
-
-            let region_status;
-            if(skip_region_check){
-                const info = await get_exit_info(browser);
-                region_status = { ok: true, ip: info.ip, country: info.country };
-                console.log(`  exit ${region_status.ip} (${region_status.country}) [region check skipped]`);
-            } else {
-                region_status = await wait_for_region(browser, expected_country, 10);
-                console.log(`  exit ${region_status.ip} (${region_status.country}) ${region_status.ok ? 'in region' : 'REGION MISMATCH'}`);
-            }
-
-            if(region_status.ok){
-                const result = await crawl_domain(domain, browser, index, run_index);
-                const key = `${result.domain} run ${run_index}`;
-                if(result.success){
-                    results.successful.push(key);
-                } else {
-                    results.failed.push({ domain: result.domain, run: run_index, error: result.failure_reason });
-                    error_log.push({ worker_index, domain: result.domain, run_index, error: String(result.failure_reason) });
-                }
-            } else {
-                console.warn(`  Region not confirmed, skipping crawl for run ${run_index}`);
-                error_log.push({ worker_index, domain, run_index, error: 'region not confirmed' });
-            }
-
-            await close_browser(browser, brave_process);
-
-            // wait between repeats of the same domain, but not after the last repeat
-            // if(run_index < repeat_count){
-            //     console.log(`  waiting ${wait_between_repeats_milliseconds / 1000}s before next repeat`);
-            //     await new Promise((resolve) => setTimeout(resolve, wait_between_repeats_milliseconds));
-            // }
-        }
-
-        // wait between domains, but not after the last domain
-        // if(index < domains.length - 1){
-        //     console.log(`waiting ${wait_between_domains_milliseconds / 1000}s before next domain`);
-        //     await new Promise((resolve) => setTimeout(resolve, wait_between_domains_milliseconds));
-        // }
+    let region_status;
+    if(skip_region_check){
+        const info = await get_exit_info(browser);
+        region_status = { ok: true, ip: info.ip, country: info.country };
+        console.log(`  exit ${region_status.ip} (${region_status.country}) [region check skipped]`);
+    } else {
+        region_status = await wait_for_region(browser, expected_country, 10);
+        console.log(`  exit ${region_status.ip} (${region_status.country}) ${region_status.ok ? 'in region' : 'REGION MISMATCH'}`);
     }
 
-
-    fs.writeFileSync(
-        path.join(variation_directory, `errors_worker_${worker_index}.json`),
-        JSON.stringify(error_log, null, 2),
-        'utf-8'
-    );
-
-
-    console.log(`\nSuccessful captures: ${results.successful.length} | Failed: ${results.failed.length}`);
-
-    if(results.failed.length > 0){
-        console.log('Failed captures:');
-        for (const failure of results.failed){
-            console.log(`  ${failure.domain} run ${failure.run}: ${failure.error}`);
+    if(region_status.ok){
+        const result = await crawl_domain(domain, browser, index, run_index);
+        succeeded = result.success;
+        if(!result.success){
+            error_log.push({ run_index, domain: result.domain, error: String(result.failure_reason) });
         }
+    } else {
+        console.warn(`  Region not confirmed, skipping crawl for visit ${run_index}`);
+        error_log.push({ run_index, domain, error: 'region not confirmed' });
+    }
+
+    await close_browser(browser, brave_process);
+
+    // optionally discard this visit's (large) profile, keeping the HTML + metadata
+    if(delete_profile_after){
+        fs.rmSync(profile_directory, { recursive: true, force: true });
+        console.log(`  profile for visit ${run_index} deleted`);
+    }
+
+    if(error_log.length > 0){
+        fs.writeFileSync(
+            path.join(websites_directory, sanitized_domain, `run_${run_index}`, 'error.json'),
+            JSON.stringify(error_log, null, 2),
+            'utf-8'
+        );
     }
 }
 
