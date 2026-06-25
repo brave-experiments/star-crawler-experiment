@@ -1,4 +1,5 @@
 import csv
+import os
 import json
 import sys
 import time
@@ -6,10 +7,10 @@ import threading
 import subprocess
 
 
-project = r"C:\Users\Administrator\Desktop\star-crawler-experiment"
+project = r"C:\Users\Administrator\Desktop\star-crawler-experiment\windows_implementation"
 path_to_crux = "../crux_latest/current.csv"
+# path_to_crux = "../crux_latest/demo_run.csv"
 poll_seconds = 10
-visits_per_domain = 10
 
 
 def load_domains(start_index, end_index):
@@ -33,6 +34,7 @@ with open("instances.json") as instances_file:
 def ssh(instance, command):
     return subprocess.run(
         ["sshpass", "-p", instance["password"], "ssh", "-o", "StrictHostKeyChecking=no",
+         "-o", "ConnectTimeout=10",
          f"Administrator@{instance['ip']}", command],
         capture_output=True, text=True
     )
@@ -41,31 +43,31 @@ def ssh(instance, command):
 def scp(instance, local_path, remote_path):
     return subprocess.run(
         ["sshpass", "-p", instance["password"], "scp", "-o", "StrictHostKeyChecking=no",
+         "-o", "ConnectTimeout=10",
          local_path, f"Administrator@{instance['ip']}:{remote_path}"],
         capture_output=True, text=True
     )
 
 
-def submit_visit_to_instance(instance, domain, run_index):
+def submit_domain_to_instance(instance, domain):
+    # ship the single target url and this box's variation, clear the old flag, trigger the task.
+    # the task runs run_batch.ps1, which launches 3 workers (3 browsers) on this url in parallel.
     local_url_file = f"current_url_{instance['ip']}.txt"
-    local_run_file = f"run_index_{instance['ip']}.txt"
     local_var_file = f"variation_{instance['ip']}.txt"
     with open(local_url_file, "w", newline="") as url_file:
         url_file.write(domain + "\r\n")
-    with open(local_run_file, "w", newline="") as run_file:
-        run_file.write(str(run_index) + "\r\n")
     with open(local_var_file, "w", newline="") as var_file:
         var_file.write(str(instance["variation"]) + "\r\n")
 
     scp(instance, local_url_file, f"{project}\\current_url.txt")
-    scp(instance, local_run_file, f"{project}\\run_index.txt")
     scp(instance, local_var_file, f"{project}\\variation.txt")
     ssh(instance, f'del "{project}\\done.flag"')
     ssh(instance, "schtasks /run /tn StarCrawlBatch")
-    print(f"  [{instance['ip']}] visit {run_index} (variation {instance['variation']}) triggered")
 
+    for scratch_file in (local_url_file, local_var_file):
+        os.remove(scratch_file)
 
-    
+    print(f"  [{instance['ip']}] variation {instance['variation']} triggered (3 workers)")
 
 
 def instance_is_done(instance):
@@ -73,55 +75,39 @@ def instance_is_done(instance):
     return "DONE" in result.stdout
 
 
+def run_domain(domain, domain_index, total_domains):
+    print(f"\n=== [{domain_index + 1}/{total_domains}] {domain} ===")
 
-
-
-
-def run_visit(domain, run_index):
-
-
+    # fire all instances near-simultaneously (one thread each). each box launches its 3 workers on this url,
+    # so the whole fleet runs 9 boxes x 3 workers = 27 crawls of this url at the same time.
     threads = []
     for instance in instances:
-        thread = threading.Thread(target=submit_visit_to_instance, args=(instance, domain, run_index))
+        thread = threading.Thread(target=submit_domain_to_instance, args=(instance, domain))
         thread.start()
         threads.append(thread)
     for thread in threads:
         thread.join()
 
-    print(f"  all instances triggered for visit {run_index}, waiting for the barrier...")
+    print("  all instances triggered, waiting for the barrier (all 9 boxes, all 3 workers each)...")
 
+    # barrier: an instance's done.flag is written only after ITS 3 workers all finish. so all flags present
+    # means all 27 crawls are complete. only then do we return and let the next domain start.
     remaining = {instance["ip"] for instance in instances}
     while remaining:
         for instance in instances:
             if instance["ip"] in remaining and instance_is_done(instance):
-                print(f"  [{instance['ip']}] visit {run_index} done")
+                print(f"  [{instance['ip']}] done (3 workers complete)")
                 remaining.discard(instance["ip"])
         if remaining:
             time.sleep(poll_seconds)
 
-
-def run_domain(domain, domain_index, total_domains):
-    print(f"\n=== [{domain_index + 1}/{total_domains}] {domain} ===")
-    # visits 1..N happen one at a time, each synchronized across all instances by the barrier,
-    # so visit N runs at the same point in time on every box before any box moves to visit N+1
-    for run_index in range(1, visits_per_domain + 1):
-        run_visit(domain, run_index)
-    print(f"=== {domain} complete ({visits_per_domain} synchronized visits) ===")
-
-
-
-
-
-
+    print(f"=== {domain} complete (27 synchronized crawls) ===")
 
 
 def main():
-
-
-
     if len(sys.argv) != 3:
-        print("usage: python3 orchestrate.py <start_index> <end_index>")
-        print("example: python3 orchestrate.py 0 10   (runs domains[0:10])")
+        print("usage: python3 orchestrate_3x3.py <start_index> <end_index>")
+        print("example: python3 orchestrate_3x3.py 0 10   (runs domains[0:10])")
         sys.exit(1)
 
     start_index = int(sys.argv[1])
@@ -129,16 +115,12 @@ def main():
 
     domains = load_domains(start_index, end_index)
     print(f"Loaded {len(domains)} domains (csv slice [{start_index}:{end_index}])")
-    print(f"{visits_per_domain} synchronized visits per domain across {len(instances)} instances\n")
+    print(f"{len(instances)} instances, 3 workers each = {len(instances) * 3} crawls per domain\n")
 
     for domain_index, domain in enumerate(domains):
         run_domain(domain, domain_index, len(domains))
 
     print("\nAll domains complete.")
-
-
-
-
 
 
 if __name__ == "__main__":
