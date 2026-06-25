@@ -64,11 +64,11 @@ const domains_flag_index = args.indexOf('--domains');
 const provided_domains_file = domains_flag_index !== -1 ? args[domains_flag_index + 1] : null;
 
 
-// run index identifies WHICH of the synchronized visits this invocation performs (1..N). The
-// orchestrator drives the visit loop across all instances and passes the run index per visit, so visit
-// N happens at the same time on every box. Each visit is an independent person: its own fresh profile.
-const run_index_flag_index = args.indexOf('--run-index');
-const run_index = run_index_flag_index !== -1 ? parseInt(args[run_index_flag_index + 1], 10) : 1;
+// worker index identifies WHICH of the parallel executions on THIS box this invocation is (0..N-1).
+// Each box launches several workers at once, all crawling the same URL, each an independent person with
+// its own freshly-copied profile, its own debug port, and its own output dir. One worker = one crawl.
+const worker_flag_index = args.indexOf('--worker');
+const worker_index = worker_flag_index !== -1 ? parseInt(args[worker_flag_index + 1], 10) : 0;
 
 // delete this visit's profile after the crawl (off by default; profiles are kept for inspection). The
 // HTML and metadata are always kept; only the (large) profile directory is removed when this is set.
@@ -283,7 +283,7 @@ function build_browser_args(){
     const browser_args = [
         '--disable-blink-features=AutomationControlled',
         '--disable-field-trial-config',
-        '--disable-features=VizDisplayCompositor,HttpsUpgrades,ThirdPartyStoragePartitioning,Translate,OptimizationHints',
+        '--disable-features=VizDisplayCompositor,HttpsUpgrades,ThirdPartyStoragePartitioning,Translate,TranslateUI,OptimizationHints',
         '--force-color-profile=srgb',
         '--font-render-hinting=none',
         '--disable-sync',
@@ -414,7 +414,7 @@ async function get_exit_ip(browser){
 // Browser lifecycle: this invocation performs ONE visit. It launches Brave on a freshly-seeded profile
 // (an independent person), confirms the exit country (NordVPN can return a different in-region IP on each
 // reconnect), crawls once, and tears the browser down fully.
-const remote_debugging_port = 9222; // one Brave per box now, so a fixed port is fine
+const remote_debugging_port = 9222 + worker_index; // each parallel worker on the box gets its own port
 const region_to_country = { US: 'US', UK: 'GB', JP: 'JP' };
 
 // before each launch, force the profile to open fresh: mark it as cleanly exited (so Brave does not
@@ -532,12 +532,12 @@ async function close_browser(browser, brave_process){
 
 
 //Core crawl: one visit =========> 6 SERIALIZATION POINTS
-async function crawl_domain(domain, browser, index, run_index){
+async function crawl_domain(domain, browser, index, worker_index){
 
 
     const url = domain.startsWith('http') ? domain : `https://${domain}`;
     const sanitized_domain = sanitize_for_filesystem(domain);
-    const domain_output_directory = path.join(websites_directory, sanitized_domain, `run_${run_index}`);
+    const domain_output_directory = path.join(websites_directory, sanitized_domain, `worker_${worker_index}`);
     
     
     if(!fs.existsSync(domain_output_directory)){
@@ -551,7 +551,7 @@ async function crawl_domain(domain, browser, index, run_index){
         domain,
         timestamp: new Date().toISOString(),
         variation_id,
-        run_index,
+        worker_index,
         region,
         consent,
         resolution: `${viewport_width}x${viewport_height}`,
@@ -825,26 +825,26 @@ async function main(){
 
 
     console.log(`Loaded ${domains.length} domains`);
-    console.log(`Run index ${run_index} | debug port ${remote_debugging_port}`);
+    console.log(`Worker ${worker_index} | debug port ${remote_debugging_port}`);
 
-    // ONE visit per invocation. The orchestrator drives the visit loop (1..N) across all instances and
-    // invokes this once per visit, so visit N happens at the same time on every box. This process performs
-    // exactly run_index's visit of the single target domain.
+    // ONE crawl per invocation. This box launches several workers at once (run_batch.ps1), all on the same
+    // URL; this process is worker_index's single execution. Each worker is an independent person with its
+    // own freshly-copied profile, so no cookies/storage are shared between the parallel workers.
     const expected_country = region_to_country[region] || region;
 
-    // one domain per invocation in the synchronized design (the orchestrator feeds a single URL at a time)
+    // one URL per invocation (the orchestrator feeds a single URL at a time to the whole fleet)
     const domain = domains[0];
     const index = 0;
     const error_log = [];
     let succeeded = false;
 
-    // fresh, independent profile for THIS visit (a distinct "person"): seeded from the pristine region
-    // seed, never reused across visits, so no cookies/storage carry over between the 10 visits.
+    // fresh, independent profile for THIS worker (a distinct "person"): copied from the pristine region
+    // seed into this worker's own directory, never shared with the box's other parallel workers.
     const sanitized_domain = sanitize_for_filesystem(domain);
-    profile_directory = path.join(websites_directory, sanitized_domain, `run_${run_index}`, 'profile');
+    profile_directory = path.join(websites_directory, sanitized_domain, `worker_${worker_index}`, 'profile');
     prepare_profile_directory();
 
-    console.log(`\n=== ${domain} | visit ${run_index} ===`);
+    console.log(`\n=== ${domain} | worker ${worker_index} ===`);
 
     const { browser, brave_process } = await launch_browser();
 
@@ -859,31 +859,33 @@ async function main(){
     }
 
     if(region_status.ok){
-        const result = await crawl_domain(domain, browser, index, run_index);
+        const result = await crawl_domain(domain, browser, index, worker_index);
         succeeded = result.success;
         if(!result.success){
-            error_log.push({ run_index, domain: result.domain, error: String(result.failure_reason) });
+            error_log.push({ worker_index, domain: result.domain, error: String(result.failure_reason) });
         }
     } else {
-        console.warn(`  Region not confirmed, skipping crawl for visit ${run_index}`);
-        error_log.push({ run_index, domain, error: 'region not confirmed' });
+        console.warn(`  Region not confirmed, skipping crawl for worker ${worker_index}`);
+        error_log.push({ worker_index, domain, error: 'region not confirmed' });
     }
 
     await close_browser(browser, brave_process);
 
-    // optionally discard this visit's (large) profile, keeping the HTML + metadata
+    //================? optionally discard this worker's (large) profile, keeping the HTML + metadata (depends on the space :( )
     if(delete_profile_after){
         fs.rmSync(profile_directory, { recursive: true, force: true });
-        console.log(`  profile for visit ${run_index} deleted`);
+        console.log(`  profile for worker ${worker_index} deleted`);
     }
 
     if(error_log.length > 0){
         fs.writeFileSync(
-            path.join(websites_directory, sanitized_domain, `run_${run_index}`, 'error.json'),
+            path.join(websites_directory, sanitized_domain, `worker_${worker_index}`, 'error.json'),
             JSON.stringify(error_log, null, 2),
             'utf-8'
         );
     }
+
+    console.log(`\nWorker ${worker_index} of ${domain}: ${succeeded ? 'SUCCESS' : 'FAILED'}`);
 }
 
 main();
