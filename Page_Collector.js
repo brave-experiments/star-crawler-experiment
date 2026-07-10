@@ -17,7 +17,7 @@ const navigation_timeout_milliseconds = 45000;
 const five_seconds_milliseconds = 5000;
 const network_idle_deadline_milliseconds = 30000; // measured from the load event
 
-const brave_executable_path = '/usr/bin/brave-browser';
+const brave_executable_path = 'C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe';
 
 const args = process.argv.slice(2);
 
@@ -64,9 +64,16 @@ const domains_flag_index = args.indexOf('--domains');
 const provided_domains_file = domains_flag_index !== -1 ? args[domains_flag_index + 1] : null;
 
 
-// worker index isolates parallel workers on the same machine: it only sets the debug port, nothing else
+// worker index identifies WHICH of the parallel executions on THIS box this invocation is (0..N-1).
+// Each box launches several workers at once, all crawling the same URL, each an independent person with
+// its own freshly-copied profile, its own debug port, and its own output dir. One worker = one crawl.
 const worker_flag_index = args.indexOf('--worker');
 const worker_index = worker_flag_index !== -1 ? parseInt(args[worker_flag_index + 1], 10) : 0;
+
+// delete this visit's profile after the crawl (off by default; profiles are kept for inspection). The
+// HTML and metadata are always kept; only the (large) profile directory is removed when this is set.
+const delete_profile_flag_index = args.indexOf('--delete-profile');
+const delete_profile_after = delete_profile_flag_index !== -1;
 
 // skip the region/country check (used for local testing without the VPN up)
 const skip_region_flag_index = args.indexOf('--skip-region');
@@ -119,8 +126,8 @@ console.log(
 // so the browser presents as a real Android device rather than a desktop with a swapped UA string
 // ----> Width and height come from the variation's resolution, not from here.
 const chrome_brands = [
-    { brand: 'Chromium', version: '144' },
-    { brand: 'Google Chrome', version: '144' },
+    { brand: 'Chromium', version: '150' },
+    { brand: 'Google Chrome', version: '150' },
     { brand: 'Not?A_Brand', version: '24' }
 ];
 
@@ -142,7 +149,7 @@ function build_user_agent_metadata(platform, platform_version, model, mobile, ar
 // device emulated "profiles" for tablet and mobile devices
 const device_profiles = {
     mobile: {
-        user_agent: 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Mobile Safari/537.36',
+        user_agent: 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36',
         platform_string: 'Linux armv8l',
         max_touch_points: 5,
         device_scale_factor: 2.625,
@@ -151,7 +158,7 @@ const device_profiles = {
         ua_metadata: build_user_agent_metadata('Android', '13.0.0', 'Pixel 7', true, '', '')
     },
     tablet: {
-        user_agent: 'Mozilla/5.0 (Linux; Android 13; SM-X700) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36',
+        user_agent: 'Mozilla/5.0 (Linux; Android 13; SM-X700) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36',
         platform_string: 'Linux armv8l',
         max_touch_points: 5,
         device_scale_factor: 2,
@@ -251,9 +258,8 @@ function prepare_profile_directory(){
             console.error(`Seed profile not found at ${seed_profile_path}`);
             process.exit(1);
         }
-        fs.mkdirSync(profile_directory, { recursive: true });
-        // fs.cpSync(seed_profile_path, profile_directory, { recursive: true });
-        require('child_process').execSync(`cp -a "${seed_profile_path}/." "${profile_directory}/"`);
+        // Windows has no cp; fs.cpSync recursively copies the seed profile and creates the dir
+        fs.cpSync(seed_profile_path, profile_directory, { recursive: true });
 
         for (const lock_file of ['SingletonLock', 'SingletonCookie', 'SingletonSocket']){
             fs.rmSync(path.join(profile_directory, lock_file), { force: true });
@@ -310,11 +316,15 @@ function build_browser_args(){
     ];
 
     // Consent-O-Matic (unless no-action) plus any --extension.
-    const ublock_extension_path = path.join(__dirname, 'ublock-origin');
+    // const ublock_extension_path = path.join(__dirname, 'ublock-origin');
+    // const extension_paths = [];
+    // if(consent === 'content-filtering'){
+    //     extension_paths.push(ublock_extension_path);
+    // } else if(consent !== 'no-action'){
+    //     extension_paths.push(consent_extension_path);
+    // }
     const extension_paths = [];
-    if(consent === 'content-filtering'){
-        extension_paths.push(ublock_extension_path);
-    } else if(consent !== 'no-action'){
+    if(consent !== 'content-filtering' && consent !== 'no-action'){
         extension_paths.push(consent_extension_path);
     }
 
@@ -405,15 +415,15 @@ async function get_exit_ip(browser){
 
 
 // ===================================================================================================================
-// Browser lifecycle for the repeated-visit design: each repeat tears the browser down fully and relaunches,
-// reusing the same profile copy so the NordVPN session is not duplicated. Region is confirmed by country
-// before each crawl because NordVPN can return a different in-region IP on each reconnect.
-const remote_debugging_port = 9222 + worker_index;
+// Browser lifecycle: this invocation performs ONE visit. It launches Brave on a freshly-seeded profile
+// (an independent person), confirms the exit country (NordVPN can return a different in-region IP on each
+// reconnect), crawls once, and tears the browser down fully.
+const remote_debugging_port = 9222 + worker_index; // each parallel worker on the box gets its own port
 const region_to_country = { US: 'US', UK: 'GB', JP: 'JP' };
 
-// before each launch, force the profile to open fresh: mark it as cleanly exited (so Brave does not
-// enter crash-restore) and set restore-on-startup to the New Tab page (so previously open tabs, e.g.
-// the crawl tab from the last run, are never reopened and do not accumulate across relaunches)
+
+
+
 function force_fresh_session(){
     const preferences_path = path.join(profile_directory, 'Default', 'Preferences');
     if(!fs.existsSync(preferences_path)) return;
@@ -431,24 +441,47 @@ function force_fresh_session(){
     } catch (error){}
 }
 
-// exit IP and country through the browser, so it traverses the NordVPN proxy
+// exit IP and country through the browser, so it traverses the NordVPN proxy.
+// We try several geolocation endpoints in sequence: a single service (e.g. ipinfo.io) can rate-limit
+// or briefly fail even while the VPN is perfectly connected, which previously caused good crawls to be
+// skipped. We only return null/null if EVERY endpoint fails.
+const region_check_endpoints = [
+    { url: 'https://ipinfo.io/json',      country_fields: ['country'],                     ip_fields: ['ip'] },
+    { url: 'https://api.country.is/',     country_fields: ['country'],                     ip_fields: ['ip'] },
+    { url: 'https://ipapi.co/json/',      country_fields: ['country_code', 'country'],     ip_fields: ['ip'] },
+    { url: 'https://ifconfig.co/json',    country_fields: ['country_iso', 'country_code'], ip_fields: ['ip'] },
+];
+
 async function get_exit_info(browser){
-    const page = await browser.newPage();
-    try {
-        await page.goto('https://ipinfo.io/json', { waitUntil: 'domcontentloaded', timeout: 20000 });
-        const body = await page.evaluate(() => document.body.innerText);
-        const parsed = JSON.parse(body);
-        return { ip: parsed.ip || null, country: parsed.country || null };
-    } catch (error){
-        console.warn(`  Could not determine exit info: ${error.message}`);
-        return { ip: null, country: null };
-    } finally {
-        await page.close().catch(() => {});
+    for (const endpoint of region_check_endpoints){
+        const page = await browser.newPage();
+        try {
+            await page.goto(endpoint.url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+            const body = await page.evaluate(() => document.body.innerText);
+            const parsed = JSON.parse(body);
+            let country = null;
+            for (const field of endpoint.country_fields){
+                if(parsed[field]){ country = parsed[field]; break; }
+            }
+            let ip = null;
+            for (const field of endpoint.ip_fields){
+                if(parsed[field]){ ip = parsed[field]; break; }
+            }
+            if(country){
+                await page.close().catch(() => {});
+                return { ip, country };
+            }
+        } catch (error){
+            // try the next endpoint
+        } finally {
+            await page.close().catch(() => {});
+        }
     }
+    console.warn('  Could not determine exit info from any endpoint');
+    return { ip: null, country: null };
 }
 
-// after a relaunch the NordVPN extension needs a moment to reconnect, so poll until the exit country
-// matches the variation's region before crawling
+
 async function wait_for_region(browser, expected_country, max_attempts){
     for (let attempt = 1; attempt <= max_attempts; attempt++){
         const info = await get_exit_info(browser);
@@ -477,7 +510,7 @@ async function launch_browser(){
         `--user-data-dir=${profile_directory}`,
         `--remote-debugging-port=${remote_debugging_port}`,
         ...build_browser_args(),
-    ], { stdio: 'ignore', detached: true });
+    ], { stdio: 'ignore' });
 
     await wait_for_debugger(remote_debugging_port);
     const browser = await puppeteer.connect({
@@ -500,42 +533,72 @@ async function launch_browser(){
     return { browser, brave_process };
 }
 
-// close the browser FULLY before the next launch. browser.close() asks Brave to quit, but the spawned
-// process can return before the browser is actually gone, so we also kill this worker's process tree by
-// pid and only return once the debug port stops answering (the real signal the browser is gone). killing
-// by pid (this worker's brave_process) never touches the other parallel workers' browsers.
+
+
+
 async function close_browser(browser, brave_process){
     await browser.close().catch(() => {});
 
     try {
-        process.kill(-brave_process.pid, 'SIGKILL');
-    } catch (error){
-        try { brave_process.kill('SIGKILL'); } catch (inner_error){}
-    }
+        require('child_process').execSync(`taskkill /pid ${brave_process.pid} /T /F`, { stdio: 'ignore' });
+    } catch (error){}
 
     await wait_for_port_free(remote_debugging_port);
 
-    // give the OS a moment to release the profile lock and socket before the next launch
+    // give Windows a moment to release the profile lock and socket before the next launch
     await new Promise((resolve) => setTimeout(resolve, 2000));
 }
 
 
 
 
+// page.content() can hang on a wedged page (the multi-minute "Runtime.callFunctionOn timed out" cases) ---->> bad page can never stall the crawl.
+function content_with_timeout(page, timeout_milliseconds){
+    return Promise.race([
+        page.content(),
+        new Promise((_, reject) => setTimeout(
+            () => reject(new Error(`page.content() exceeded ${timeout_milliseconds}ms`)),
+            timeout_milliseconds
+        ))
+    ]);
+}
 
+// Capture ONE serialization point -----> isolation. 
+// A mid-capture navigation can throw an "Execution context was destroyed" errror---> record it, let the page settle and retry once (the retry runs against the redirected page). 
+// One point failing never aborts the crawl.
+async function capture_serialization_point(page, point_name, domain_output_directory, metadata){
+    try {
+        const html = await content_with_timeout(page, 15000);
+        metadata.html_size_bytes[point_name] = serialize_to(point_name, domain_output_directory, html);
+        return true;
+    } catch (error){
+        metadata.serialization_errors[point_name] = error.message;   // trace it
+        try {
+            await new Promise(resolve => setTimeout(resolve, 1000));  // let the navigation settle
+            const html = await content_with_timeout(page, 15000);
+            metadata.html_size_bytes[point_name] = serialize_to(point_name, domain_output_directory, html);
+            delete metadata.serialization_errors[point_name];         // recovered on retry
+            return true;
+        } catch (retry_error){
+            metadata.serialization_errors[point_name] = retry_error.message;
+            console.warn(`  [${point_name}] capture failed: ${retry_error.message}`);
+            return false;
+        }
+    }
+}
 
 
 
 
 //Core crawl: one visit =========> 6 SERIALIZATION POINTS
-async function crawl_domain(domain, browser, index, run_index){
+async function crawl_domain(domain, browser, index, worker_index, region_confirmed = true, region_status = null){
 
 
     const url = domain.startsWith('http') ? domain : `https://${domain}`;
     const sanitized_domain = sanitize_for_filesystem(domain);
-    const domain_output_directory = path.join(websites_directory, sanitized_domain, `run_${run_index}`);
-    
-    
+    const domain_output_directory = path.join(websites_directory, sanitized_domain, `worker_${worker_index}`);
+
+
     if(!fs.existsSync(domain_output_directory)){
         fs.mkdirSync(domain_output_directory, { recursive: true });
     }
@@ -547,8 +610,11 @@ async function crawl_domain(domain, browser, index, run_index){
         domain,
         timestamp: new Date().toISOString(),
         variation_id,
-        run_index,
+        worker_index,
         region,
+        region_confirmed,
+        observed_exit_ip: region_status ? region_status.ip : null,
+        observed_exit_country: region_status ? region_status.country : null,
         consent,
         resolution: `${viewport_width}x${viewport_height}`,
         device: device || 'desktop',
@@ -569,12 +635,14 @@ async function crawl_domain(domain, browser, index, run_index){
         failed_requests_by_error: {},
         failed_requests_by_category: {},
         error_response_count: 0,
+        serialization_errors: {},          // point_name -> why that capture failed (empty when clean)
+        serialization_points_captured: 0,  // how many of the 6 points we actually saved
         html_size_bytes: {}
     };
 
-    
-    
-    
+
+
+
     console.log(`\nCrawling: [${index}] ---> ${domain}`);
     const page = await browser.newPage();
 
@@ -586,10 +654,9 @@ async function crawl_domain(domain, browser, index, run_index){
         await page.setViewport({ width: viewport_width, height: viewport_height });
     }
     await page.setExtraHTTPHeaders({ 'Referer': 'https://www.google.com' });
-    
 
 
-    
+
     // lets see what UAs we get
     metadata.user_agent = await page.evaluate(() => navigator.userAgent).catch(() => null);
 
@@ -629,9 +696,10 @@ async function crawl_domain(domain, browser, index, run_index){
 
     let navigation_start_timestamp = null;
     try {
-        //dwell time on page 
+        //dwell time on page
         navigation_start_timestamp = Date.now();
-        // return at domcontentloaded so a slow load cannot block the later captures
+        // return at domcontentloaded so a slow load cannot block the later captures.
+        // ONLY the navigation itself is fatal here -- individual snapshot failures are isolated below.
         console.log(`  Navigating to ${url}...`);
         const navigation_response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: navigation_timeout_milliseconds });
 
@@ -651,24 +719,23 @@ async function crawl_domain(domain, browser, index, run_index){
                 };
             }
 
-            // [SERIALIZATION POINT 1]: raw server HTML before client side rendering
-            const initial_response_html = await status_response.text().catch(() => null);
+            // [SERIALIZATION POINT 1]: raw server HTML before client side rendering (isolated via .catch)
+            const initial_response_html = await status_response.text().catch((error) => {
+                metadata.serialization_errors.initial_response = error.message;
+                return null;
+            });
             if(initial_response_html !== null){
                 metadata.html_size_bytes.initial_response = serialize_to('initial_response', domain_output_directory, initial_response_html);
             }
         }
 
-        
-        
-        
+
         // [SERIALIZATION POINT 2]: DOM at domcontentloaded (goto resolved here)
-        metadata.html_size_bytes.domcontentloaded = serialize_to('domcontentloaded', domain_output_directory, await page.content());
+        await capture_serialization_point(page, 'domcontentloaded', domain_output_directory, metadata);
 
         const idle_reference_timestamp = Date.now();
 
-        
-        
-        
+
         // wait for the load event, capped within the idle deadline
         await Promise.race([
             load_event_promise,
@@ -676,24 +743,17 @@ async function crawl_domain(domain, browser, index, run_index){
         ]);
         metadata.load_event_fired = load_event_fired;
 
-        
-        
-        
-        // [SERIALIZATION POINT 3]: DOM at load
-        metadata.html_size_bytes.page_load = serialize_to('page_load', domain_output_directory, await page.content());
 
-        
-        
-        
+        // [SERIALIZATION POINT 3]: DOM at load
+        await capture_serialization_point(page, 'page_load', domain_output_directory, metadata);
+
+
         // [SERIALIZATION POINT 4]: 5 seconds after load
         await new Promise(resolve => setTimeout(resolve, five_seconds_milliseconds));
-        metadata.html_size_bytes.five_seconds = serialize_to('five_seconds', domain_output_directory, await page.content());
+        await capture_serialization_point(page, 'five_seconds', domain_output_directory, metadata);
 
-        
-        
-        
-        
-        // [[SERIALIZATION POINT 5] : networkidle2 (<=2 in flight), capped within the deadline
+
+        // [SERIALIZATION POINT 5]: networkidle2 (<=2 in flight), capped within the deadline
         const remaining_for_networkidle2 = network_idle_deadline_milliseconds - (Date.now() - idle_reference_timestamp);
         if(remaining_for_networkidle2 > 0){
             await page.waitForNetworkIdle({ concurrency: 2, timeout: remaining_for_networkidle2 }).catch(() => {
@@ -703,15 +763,10 @@ async function crawl_domain(domain, browser, index, run_index){
         } else {
             metadata.networkidle2_timed_out = true;
         }
-        metadata.html_size_bytes.networkidle2 = serialize_to('networkidle2', domain_output_directory, await page.content());
+        await capture_serialization_point(page, 'networkidle2', domain_output_directory, metadata);
 
 
-
-
-
-
-        
-        // [SERIALIZATION POINT 6] : networkidle0 (0 in flight), capped within the deadline
+        // [SERIALIZATION POINT 6]: networkidle0 (0 in flight), capped within the deadline
         const remaining_for_networkidle0 = network_idle_deadline_milliseconds - (Date.now() - idle_reference_timestamp);
         if(remaining_for_networkidle0 > 0){
             await page.waitForNetworkIdle({ concurrency: 0, timeout: remaining_for_networkidle0 }).catch(() => {
@@ -721,11 +776,17 @@ async function crawl_domain(domain, browser, index, run_index){
         } else {
             metadata.networkidle0_timed_out = true;
         }
-        metadata.html_size_bytes.networkidle0 = serialize_to('networkidle0', domain_output_directory, await page.content());
+        await capture_serialization_point(page, 'networkidle0', domain_output_directory, metadata);
 
-        metadata.success = true;
+
+        // success = every one of the 6 serialization points was captured.
+        // A snapshot that failed on a mid-capture navigation is traced in serialization_errors, but does NOT throw away the points we did capture.
+        const captured_points = serialization_points.filter(point => metadata.html_size_bytes[point] !== undefined);
+        metadata.serialization_points_captured = captured_points.length;
+        metadata.success = (captured_points.length === serialization_points.length);
 
     } catch (error){
+        // reached only when the NAVIGATION itself failed (timeout / dns / connection / tls), not when an individual snapshot failed.
         metadata.failure_reason = error.message;
         metadata.network_error = main_navigation_error || error.message;
         metadata.error_category = categorize_network_error(metadata.network_error);
@@ -737,14 +798,14 @@ async function crawl_domain(domain, browser, index, run_index){
         }
 
         try {
-            const exit_html = await page.content();
+            const exit_html = await content_with_timeout(page, 10000);
             metadata.html_size_bytes.exit_state = serialize_to('exit_state', domain_output_directory, exit_html);
         } catch (capture_error){
             console.warn(`  Could not capture exit-state HTML: ${capture_error.message}`);
         }
 
     } finally {
-        
+
         if(navigation_start_timestamp !== null){
             metadata.dwell_time_milliseconds = Date.now() - navigation_start_timestamp;
         }
@@ -760,9 +821,6 @@ async function crawl_domain(domain, browser, index, run_index){
 
     return metadata;
 }
-
-
-
 
 
 
@@ -823,87 +881,62 @@ async function main(){
     console.log(`Loaded ${domains.length} domains`);
     console.log(`Worker ${worker_index} | debug port ${remote_debugging_port}`);
 
-
-    // each domain is visited repeat_count times. Every repeat tears the browser down and relaunches on the
-    // same profile copy, so the visits are independent at the browser level without duplicating the NordVPN session.
-    const repeat_count = 9;
+    // ONE crawl per invocation. This box launches several workers at once (run_batch.ps1), all on the same
+    // URL; this process is worker_index's single execution. 
     const expected_country = region_to_country[region] || region;
 
-    // pacing between launches so the NordVPN extension is not reconnecting too rapidly
-    const wait_between_repeats_milliseconds = 30000;
-    const wait_between_domains_milliseconds = 60000;
-
-    const results = { successful: [], failed: [] };
+    // one URL per invocation (the orchestrator feeds a single URL at a time to the whole fleet)
+    const domain = domains[0];
+    const index = 0;
     const error_log = [];
+    let succeeded = false;
 
-    for (const [index, domain] of domains.entries()){
+    // fresh, independent profile for THIS worker (a distinct "person")
+    const sanitized_domain = sanitize_for_filesystem(domain);
+    profile_directory = path.join(websites_directory, sanitized_domain, `worker_${worker_index}`, 'profile');
+    prepare_profile_directory();
 
-        // fresh profile copy for THIS domain, seeded once and reused across its repeat_count runs
-        const sanitized_domain = sanitize_for_filesystem(domain);
-        profile_directory = path.join(websites_directory, sanitized_domain, 'profile');
-        prepare_profile_directory();
+    console.log(`\n=== ${domain} | worker ${worker_index} ===`);
 
-        for (let run_index = 1; run_index <= repeat_count; run_index++){
-            console.log(`\n=== [${index}] ${domain} | run ${run_index}/${repeat_count} ===`);
+    const { browser, brave_process } = await launch_browser();
 
-            const { browser, brave_process } = await launch_browser();
-
-            let region_status;
-            if(skip_region_check){
-                const info = await get_exit_info(browser);
-                region_status = { ok: true, ip: info.ip, country: info.country };
-                console.log(`  exit ${region_status.ip} (${region_status.country}) [region check skipped]`);
-            } else {
-                region_status = await wait_for_region(browser, expected_country, 10);
-                console.log(`  exit ${region_status.ip} (${region_status.country}) ${region_status.ok ? 'in region' : 'REGION MISMATCH'}`);
-            }
-
-            if(region_status.ok){
-                const result = await crawl_domain(domain, browser, index, run_index);
-                const key = `${result.domain} run ${run_index}`;
-                if(result.success){
-                    results.successful.push(key);
-                } else {
-                    results.failed.push({ domain: result.domain, run: run_index, error: result.failure_reason });
-                    error_log.push({ worker_index, domain: result.domain, run_index, error: String(result.failure_reason) });
-                }
-            } else {
-                console.warn(`  Region not confirmed, skipping crawl for run ${run_index}`);
-                error_log.push({ worker_index, domain, run_index, error: 'region not confirmed' });
-            }
-
-            await close_browser(browser, brave_process);
-
-            // wait between repeats of the same domain, but not after the last repeat
-            // if(run_index < repeat_count){
-            //     console.log(`  waiting ${wait_between_repeats_milliseconds / 1000}s before next repeat`);
-            //     await new Promise((resolve) => setTimeout(resolve, wait_between_repeats_milliseconds));
-            // }
-        }
-
-        // wait between domains, but not after the last domain
-        // if(index < domains.length - 1){
-        //     console.log(`waiting ${wait_between_domains_milliseconds / 1000}s before next domain`);
-        //     await new Promise((resolve) => setTimeout(resolve, wait_between_domains_milliseconds));
-        // }
+    let region_status;
+    if(skip_region_check){
+        const info = await get_exit_info(browser);
+        region_status = { ok: true, ip: info.ip, country: info.country };
+        console.log(`  exit ${region_status.ip} (${region_status.country}) [region check skipped]`);
+    } else {
+        region_status = await wait_for_region(browser, expected_country, 10);
+        console.log(`  exit ${region_status.ip} (${region_status.country}) ${region_status.ok ? 'in region' : 'REGION MISMATCH'}`);
     }
 
-
-    fs.writeFileSync(
-        path.join(variation_directory, `errors_worker_${worker_index}.json`),
-        JSON.stringify(error_log, null, 2),
-        'utf-8'
-    );
-
-
-    console.log(`\nSuccessful captures: ${results.successful.length} | Failed: ${results.failed.length}`);
-
-    if(results.failed.length > 0){
-        console.log('Failed captures:');
-        for (const failure of results.failed){
-            console.log(`  ${failure.domain} run ${failure.run}: ${failure.error}`);
-        }
+    const region_confirmed = region_status.ok;
+    if(!region_confirmed){
+        console.warn(`  Region check did NOT confirm (exit ${region_status.ip} country ${region_status.country}); crawling anyway and flagging region_confirmed=false`);
     }
+    const result = await crawl_domain(domain, browser, index, worker_index, region_confirmed, region_status);
+    succeeded = result.success;
+    if(!result.success){
+        error_log.push({ worker_index, domain: result.domain, error: String(result.failure_reason) });
+    }
+
+    await close_browser(browser, brave_process);
+
+    // optionally discard this worker's (large) profile, keeping the HTML + metadata
+    if(delete_profile_after){
+        fs.rmSync(profile_directory, { recursive: true, force: true });
+        console.log(`  profile for worker ${worker_index} deleted`);
+    }
+
+    if(error_log.length > 0){
+        fs.writeFileSync(
+            path.join(websites_directory, sanitized_domain, `worker_${worker_index}`, 'error.json'),
+            JSON.stringify(error_log, null, 2),
+            'utf-8'
+        );
+    }
+
+    console.log(`\nWorker ${worker_index} of ${domain}: ${succeeded ? 'SUCCESS' : 'FAILED'}`);
 }
 
 main();
