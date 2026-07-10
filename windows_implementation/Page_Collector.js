@@ -283,7 +283,7 @@ function build_browser_args(){
     const browser_args = [
         '--disable-blink-features=AutomationControlled',
         '--disable-field-trial-config',
-        '--disable-features=VizDisplayCompositor,HttpsUpgrades,ThirdPartyStoragePartitioning,Translate,TranslateUI,OptimizationHints',
+        '--disable-features=VizDisplayCompositor,HttpsUpgrades,ThirdPartyStoragePartitioning,Translate,OptimizationHints',
         '--force-color-profile=srgb',
         '--font-render-hinting=none',
         '--disable-sync',
@@ -316,11 +316,15 @@ function build_browser_args(){
     ];
 
     // Consent-O-Matic (unless no-action) plus any --extension.
-    const ublock_extension_path = path.join(__dirname, 'ublock-origin');
+    // const ublock_extension_path = path.join(__dirname, 'ublock-origin');
+    // const extension_paths = [];
+    // if(consent === 'content-filtering'){
+    //     extension_paths.push(ublock_extension_path);
+    // } else if(consent !== 'no-action'){
+    //     extension_paths.push(consent_extension_path);
+    // }
     const extension_paths = [];
-    if(consent === 'content-filtering'){
-        extension_paths.push(ublock_extension_path);
-    } else if(consent !== 'no-action'){
+    if(consent !== 'content-filtering' && consent !== 'no-action'){
         extension_paths.push(consent_extension_path);
     }
 
@@ -417,9 +421,9 @@ async function get_exit_ip(browser){
 const remote_debugging_port = 9222 + worker_index; // each parallel worker on the box gets its own port
 const region_to_country = { US: 'US', UK: 'GB', JP: 'JP' };
 
-// before each launch, force the profile to open fresh: mark it as cleanly exited (so Brave does not
-// enter crash-restore) and set restore-on-startup to the New Tab page (so previously open tabs, e.g.
-// the crawl tab from the last run, are never reopened and do not accumulate across relaunches)
+
+
+
 function force_fresh_session(){
     const preferences_path = path.join(profile_directory, 'Default', 'Preferences');
     if(!fs.existsSync(preferences_path)) return;
@@ -437,24 +441,47 @@ function force_fresh_session(){
     } catch (error){}
 }
 
-// exit IP and country through the browser, so it traverses the NordVPN proxy
+// exit IP and country through the browser, so it traverses the NordVPN proxy.
+// We try several geolocation endpoints in sequence: a single service (e.g. ipinfo.io) can rate-limit
+// or briefly fail even while the VPN is perfectly connected, which previously caused good crawls to be
+// skipped. We only return null/null if EVERY endpoint fails.
+const region_check_endpoints = [
+    { url: 'https://ipinfo.io/json',      country_fields: ['country'],                     ip_fields: ['ip'] },
+    { url: 'https://api.country.is/',     country_fields: ['country'],                     ip_fields: ['ip'] },
+    { url: 'https://ipapi.co/json/',      country_fields: ['country_code', 'country'],     ip_fields: ['ip'] },
+    { url: 'https://ifconfig.co/json',    country_fields: ['country_iso', 'country_code'], ip_fields: ['ip'] },
+];
+
 async function get_exit_info(browser){
-    const page = await browser.newPage();
-    try {
-        await page.goto('https://ipinfo.io/json', { waitUntil: 'domcontentloaded', timeout: 20000 });
-        const body = await page.evaluate(() => document.body.innerText);
-        const parsed = JSON.parse(body);
-        return { ip: parsed.ip || null, country: parsed.country || null };
-    } catch (error){
-        console.warn(`  Could not determine exit info: ${error.message}`);
-        return { ip: null, country: null };
-    } finally {
-        await page.close().catch(() => {});
+    for (const endpoint of region_check_endpoints){
+        const page = await browser.newPage();
+        try {
+            await page.goto(endpoint.url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+            const body = await page.evaluate(() => document.body.innerText);
+            const parsed = JSON.parse(body);
+            let country = null;
+            for (const field of endpoint.country_fields){
+                if(parsed[field]){ country = parsed[field]; break; }
+            }
+            let ip = null;
+            for (const field of endpoint.ip_fields){
+                if(parsed[field]){ ip = parsed[field]; break; }
+            }
+            if(country){
+                await page.close().catch(() => {});
+                return { ip, country };
+            }
+        } catch (error){
+            // try the next endpoint
+        } finally {
+            await page.close().catch(() => {});
+        }
     }
+    console.warn('  Could not determine exit info from any endpoint');
+    return { ip: null, country: null };
 }
 
-// after a relaunch the NordVPN extension needs a moment to reconnect, so poll until the exit country
-// matches the variation's region before crawling
+
 async function wait_for_region(browser, expected_country, max_attempts){
     for (let attempt = 1; attempt <= max_attempts; attempt++){
         const info = await get_exit_info(browser);
@@ -506,10 +533,9 @@ async function launch_browser(){
     return { browser, brave_process };
 }
 
-// close the browser FULLY before the next launch. browser.close() asks Brave to quit, but the spawned
-// process can return before the browser is actually gone, so we also kill this worker's process tree by
-// pid and only return once the debug port stops answering (the real signal the browser is gone). killing
-// by pid (this worker's brave_process) never touches the other parallel workers' browsers.
+
+
+
 async function close_browser(browser, brave_process){
     await browser.close().catch(() => {});
 
@@ -532,7 +558,7 @@ async function close_browser(browser, brave_process){
 
 
 //Core crawl: one visit =========> 6 SERIALIZATION POINTS
-async function crawl_domain(domain, browser, index, worker_index){
+async function crawl_domain(domain, browser, index, worker_index, region_confirmed = true, region_status = null){
 
 
     const url = domain.startsWith('http') ? domain : `https://${domain}`;
@@ -553,6 +579,9 @@ async function crawl_domain(domain, browser, index, worker_index){
         variation_id,
         worker_index,
         region,
+        region_confirmed,
+        observed_exit_ip: region_status ? region_status.ip : null,
+        observed_exit_country: region_status ? region_status.country : null,
         consent,
         resolution: `${viewport_width}x${viewport_height}`,
         device: device || 'desktop',
@@ -828,8 +857,7 @@ async function main(){
     console.log(`Worker ${worker_index} | debug port ${remote_debugging_port}`);
 
     // ONE crawl per invocation. This box launches several workers at once (run_batch.ps1), all on the same
-    // URL; this process is worker_index's single execution. Each worker is an independent person with its
-    // own freshly-copied profile, so no cookies/storage are shared between the parallel workers.
+    // URL; this process is worker_index's single execution. 
     const expected_country = region_to_country[region] || region;
 
     // one URL per invocation (the orchestrator feeds a single URL at a time to the whole fleet)
@@ -838,8 +866,7 @@ async function main(){
     const error_log = [];
     let succeeded = false;
 
-    // fresh, independent profile for THIS worker (a distinct "person"): copied from the pristine region
-    // seed into this worker's own directory, never shared with the box's other parallel workers.
+    // fresh, independent profile for THIS worker (a distinct "person")
     const sanitized_domain = sanitize_for_filesystem(domain);
     profile_directory = path.join(websites_directory, sanitized_domain, `worker_${worker_index}`, 'profile');
     prepare_profile_directory();
@@ -858,20 +885,19 @@ async function main(){
         console.log(`  exit ${region_status.ip} (${region_status.country}) ${region_status.ok ? 'in region' : 'REGION MISMATCH'}`);
     }
 
-    if(region_status.ok){
-        const result = await crawl_domain(domain, browser, index, worker_index);
-        succeeded = result.success;
-        if(!result.success){
-            error_log.push({ worker_index, domain: result.domain, error: String(result.failure_reason) });
-        }
-    } else {
-        console.warn(`  Region not confirmed, skipping crawl for worker ${worker_index}`);
-        error_log.push({ worker_index, domain, error: 'region not confirmed' });
+    const region_confirmed = region_status.ok;
+    if(!region_confirmed){
+        console.warn(`  Region check did NOT confirm (exit ${region_status.ip} country ${region_status.country}); crawling anyway and flagging region_confirmed=false`);
+    }
+    const result = await crawl_domain(domain, browser, index, worker_index, region_confirmed, region_status);
+    succeeded = result.success;
+    if(!result.success){
+        error_log.push({ worker_index, domain: result.domain, error: String(result.failure_reason) });
     }
 
     await close_browser(browser, brave_process);
 
-    //================? optionally discard this worker's (large) profile, keeping the HTML + metadata (depends on the space :( )
+    // optionally discard this worker's (large) profile, keeping the HTML + metadata
     if(delete_profile_after){
         fs.rmSync(profile_directory, { recursive: true, force: true });
         console.log(`  profile for worker ${worker_index} deleted`);
