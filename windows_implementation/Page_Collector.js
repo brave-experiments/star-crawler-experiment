@@ -13,7 +13,7 @@ puppeteer.use(stealth);
 
 process.on('unhandledRejection', (reason) => { if(reason && reason.name === 'TargetCloseError') return; throw reason; });
 
-const navigation_timeout_milliseconds = 45000;
+const navigation_timeout_milliseconds = 60000;
 const five_seconds_milliseconds = 5000;
 const network_idle_deadline_milliseconds = 30000; // measured from the load event
 
@@ -126,8 +126,8 @@ console.log(
 // so the browser presents as a real Android device rather than a desktop with a swapped UA string
 // ----> Width and height come from the variation's resolution, not from here.
 const chrome_brands = [
-    { brand: 'Chromium', version: '144' },
-    { brand: 'Google Chrome', version: '144' },
+    { brand: 'Chromium', version: '150' },
+    { brand: 'Google Chrome', version: '150' },
     { brand: 'Not?A_Brand', version: '24' }
 ];
 
@@ -149,7 +149,7 @@ function build_user_agent_metadata(platform, platform_version, model, mobile, ar
 // device emulated "profiles" for tablet and mobile devices
 const device_profiles = {
     mobile: {
-        user_agent: 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Mobile Safari/537.36',
+        user_agent: 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36',
         platform_string: 'Linux armv8l',
         max_touch_points: 5,
         device_scale_factor: 2.625,
@@ -158,7 +158,7 @@ const device_profiles = {
         ua_metadata: build_user_agent_metadata('Android', '13.0.0', 'Pixel 7', true, '', '')
     },
     tablet: {
-        user_agent: 'Mozilla/5.0 (Linux; Android 13; SM-X700) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36',
+        user_agent: 'Mozilla/5.0 (Linux; Android 13; SM-X700) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36',
         platform_string: 'Linux armv8l',
         max_touch_points: 5,
         device_scale_factor: 2,
@@ -556,6 +556,41 @@ async function close_browser(browser, brave_process){
 
 
 
+// page.content() can hang on a wedged page (the multi-minute "Runtime.callFunctionOn timed out" cases) ---->> bad page can never stall the crawl.
+function content_with_timeout(page, timeout_milliseconds){
+    return Promise.race([
+        page.content(),
+        new Promise((_, reject) => setTimeout(
+            () => reject(new Error(`page.content() exceeded ${timeout_milliseconds}ms`)),
+            timeout_milliseconds
+        ))
+    ]);
+}
+
+// Capture ONE serialization point -----> isolation.
+// A mid-capture navigation can throw an "Execution context was destroyed" errror---> record it, let the page settle and retry once (the retry runs against the redirected page).
+// One point failing never aborts the crawl.
+async function capture_serialization_point(page, point_name, domain_output_directory, metadata){
+    try {
+        const html = await content_with_timeout(page, 15000);
+        metadata.html_size_bytes[point_name] = serialize_to(point_name, domain_output_directory, html);
+        return true;
+    } catch (error){
+        metadata.serialization_errors[point_name] = error.message;   // trace it
+        try {
+            await new Promise(resolve => setTimeout(resolve, 1000));  // let the navigation settle
+            const html = await content_with_timeout(page, 15000);
+            metadata.html_size_bytes[point_name] = serialize_to(point_name, domain_output_directory, html);
+            delete metadata.serialization_errors[point_name];         // recovered on retry
+            return true;
+        } catch (retry_error){
+            metadata.serialization_errors[point_name] = retry_error.message;
+            console.warn(`  [${point_name}] capture failed: ${retry_error.message}`);
+            return false;
+        }
+    }
+}
+
 
 //Core crawl: one visit =========> 6 SERIALIZATION POINTS
 async function crawl_domain(domain, browser, index, worker_index, region_confirmed = true, region_status = null){
@@ -602,6 +637,8 @@ async function crawl_domain(domain, browser, index, worker_index, region_confirm
         failed_requests_by_error: {},
         failed_requests_by_category: {},
         error_response_count: 0,
+        serialization_errors: {},          // point_name -> why that capture failed (empty when clean)
+        serialization_points_captured: 0,  // how many of the 6 points we actually saved
         html_size_bytes: {}
     };
 
@@ -628,14 +665,20 @@ async function crawl_domain(domain, browser, index, worker_index, region_confirm
 
     // keep the FINAL main document response so status and raw server HTML survive even a later timeout
     let main_document_response = null;
+    let initial_response_promise = null;      // <-- hold the raw-HTML read
+
     page.on('response', (response) => {
-        if(response.status() >= 400){
-            metadata.error_response_count += 1;
-        }
+        if(response.status() >= 400){ metadata.error_response_count += 1; }
         if(response.request().isNavigationRequest() &&
             response.frame() === page.mainFrame() &&
             response.request().resourceType() === 'document'){
             main_document_response = response;
+            // grab the raw server HTML the instant the doc response fires, before a
+            // client-side reload can free the body buffer ----> Capture the OUTCOME (html OR error)
+            initial_response_promise = response.text().then(
+                (html) => ({ html, error: null }),
+                (error) => ({ html: null, error: error.message })
+            );
         }
     });
 
@@ -662,9 +705,10 @@ async function crawl_domain(domain, browser, index, worker_index, region_confirm
 
     let navigation_start_timestamp = null;
     try {
-        //dwell time on page 
+        //dwell time on page
         navigation_start_timestamp = Date.now();
-        // return at domcontentloaded so a slow load cannot block the later captures
+        // return at domcontentloaded so a slow load cannot block the later captures.
+        // ONLY the navigation itself is fatal here -- individual snapshot failures are isolated below.
         console.log(`  Navigating to ${url}...`);
         const navigation_response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: navigation_timeout_milliseconds });
 
@@ -684,10 +728,21 @@ async function crawl_domain(domain, browser, index, worker_index, region_confirm
                 };
             }
 
-            // [SERIALIZATION POINT 1]: raw server HTML before client side rendering
-            const initial_response_html = await status_response.text().catch(() => null);
-            if(initial_response_html !== null){
-                metadata.html_size_bytes.initial_response = serialize_to('initial_response', domain_output_directory, initial_response_html);
+            // [SERIALIZATION POINT 1]: raw server HTML before client side rendering (isolated via .catch)
+            // const initial_response_html = await status_response.text().catch((error) => {
+            //     metadata.serialization_errors.initial_response = error.message;
+            //     return null;
+            // });
+            // if(initial_response_html !== null){
+            //     metadata.html_size_bytes.initial_response = serialize_to('initial_response', domain_output_directory, initial_response_html);
+            // }
+            if(initial_response_promise){
+                const { html: initial_response_html, error: initial_response_error } = await initial_response_promise;
+                if(initial_response_html !== null){
+                    metadata.html_size_bytes.initial_response = serialize_to('initial_response', domain_output_directory, initial_response_html);
+                } else {
+                    metadata.serialization_errors.initial_response = initial_response_error || 'raw response body unavailable';
+                }
             }
         }
 
@@ -695,7 +750,7 @@ async function crawl_domain(domain, browser, index, worker_index, region_confirm
         
         
         // [SERIALIZATION POINT 2]: DOM at domcontentloaded (goto resolved here)
-        metadata.html_size_bytes.domcontentloaded = serialize_to('domcontentloaded', domain_output_directory, await page.content());
+        await capture_serialization_point(page, 'domcontentloaded', domain_output_directory, metadata);
 
         const idle_reference_timestamp = Date.now();
 
@@ -713,20 +768,18 @@ async function crawl_domain(domain, browser, index, worker_index, region_confirm
         
         
         // [SERIALIZATION POINT 3]: DOM at load
-        metadata.html_size_bytes.page_load = serialize_to('page_load', domain_output_directory, await page.content());
+        await capture_serialization_point(page, 'page_load', domain_output_directory, metadata);
 
-        
-        
-        
+
         // [SERIALIZATION POINT 4]: 5 seconds after load
         await new Promise(resolve => setTimeout(resolve, five_seconds_milliseconds));
-        metadata.html_size_bytes.five_seconds = serialize_to('five_seconds', domain_output_directory, await page.content());
+        await capture_serialization_point(page, 'five_seconds', domain_output_directory, metadata);
 
         
         
         
         
-        // [[SERIALIZATION POINT 5] : networkidle2 (<=2 in flight), capped within the deadline
+        // [SERIALIZATION POINT 5]: networkidle2 (<=2 in flight), capped within the deadline
         const remaining_for_networkidle2 = network_idle_deadline_milliseconds - (Date.now() - idle_reference_timestamp);
         if(remaining_for_networkidle2 > 0){
             await page.waitForNetworkIdle({ concurrency: 2, timeout: remaining_for_networkidle2 }).catch(() => {
@@ -736,7 +789,7 @@ async function crawl_domain(domain, browser, index, worker_index, region_confirm
         } else {
             metadata.networkidle2_timed_out = true;
         }
-        metadata.html_size_bytes.networkidle2 = serialize_to('networkidle2', domain_output_directory, await page.content());
+        await capture_serialization_point(page, 'networkidle2', domain_output_directory, metadata);
 
 
 
@@ -754,11 +807,17 @@ async function crawl_domain(domain, browser, index, worker_index, region_confirm
         } else {
             metadata.networkidle0_timed_out = true;
         }
-        metadata.html_size_bytes.networkidle0 = serialize_to('networkidle0', domain_output_directory, await page.content());
+        await capture_serialization_point(page, 'networkidle0', domain_output_directory, metadata);
 
-        metadata.success = true;
+
+        // success = every one of the 6 serialization points was captured.
+        // A snapshot that failed on a mid-capture navigation is traced in serialization_errors, but does NOT throw away the points we did capture.
+        const captured_points = serialization_points.filter(point => metadata.html_size_bytes[point] !== undefined);
+        metadata.serialization_points_captured = captured_points.length;
+        metadata.success = (captured_points.length === serialization_points.length);
 
     } catch (error){
+        // reached only when the NAVIGATION itself failed (timeout / dns / connection / tls), not when an individual snapshot failed.
         metadata.failure_reason = error.message;
         metadata.network_error = main_navigation_error || error.message;
         metadata.error_category = categorize_network_error(metadata.network_error);
@@ -770,7 +829,7 @@ async function crawl_domain(domain, browser, index, worker_index, region_confirm
         }
 
         try {
-            const exit_html = await page.content();
+            const exit_html = await content_with_timeout(page, 10000);
             metadata.html_size_bytes.exit_state = serialize_to('exit_state', domain_output_directory, exit_html);
         } catch (capture_error){
             console.warn(`  Could not capture exit-state HTML: ${capture_error.message}`);
