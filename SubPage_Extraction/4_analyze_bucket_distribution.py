@@ -39,18 +39,23 @@ def main():
         buckets_by_domain = json.load(input_file)
 
     total_domains = len(buckets_by_domain)
-    url_counts_per_bucket = [0, 0, 0, 0, 0]
     domains_with_no_subpages = 0
 
+    # count each URL ONCE across the whole dataset
+    bucket_of_url = {}
     for domain_label in buckets_by_domain:
         domain_buckets = buckets_by_domain[domain_label]
         domain_total = 0
         for index, bucket_name in enumerate(bucket_keys):
-            count = len(domain_buckets.get(bucket_name, []))
-            url_counts_per_bucket[index] += count
-            domain_total += count
+            for record in domain_buckets.get(bucket_name, []):
+                bucket_of_url[record["url"]] = index
+                domain_total += 1
         if domain_total == 0:
             domains_with_no_subpages += 1
+
+    url_counts_per_bucket = [0, 0, 0, 0, 0]
+    for bucket_index in bucket_of_url.values():
+        url_counts_per_bucket[bucket_index] += 1
 
     total_urls = sum(url_counts_per_bucket)
 
