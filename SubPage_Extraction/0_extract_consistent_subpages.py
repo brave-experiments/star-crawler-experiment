@@ -22,6 +22,18 @@ settled_snapshot_points = ["networkidle0", "networkidle2"]
 # one sub-page
 strip_query_string = True
 
+# EXCKYDE URLS THAT DIRECTLY POINT TO DOCUMENT FILES AND NOT HTML 
+# Preprocessing step ---> then we also check the content type the request (wget ) returns
+non_page_extensions = (
+    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".csv", ".txt", ".rtf", ".odt",
+    ".jpg", ".jpeg", ".png", ".gif", ".svg", ".webp", ".ico", ".bmp", ".tif", ".tiff",
+    ".mp4", ".mp3", ".avi", ".mov", ".wmv", ".flv", ".mkv", ".webm", ".wav", ".ogg", ".m4a",
+    ".zip", ".rar", ".gz", ".tar", ".7z", ".bz2",
+    ".css", ".js", ".json", ".xml", ".rss", ".atom",
+    ".woff", ".woff2", ".ttf", ".eot", ".otf",
+    ".exe", ".dmg", ".apk", ".msi", ".deb", ".rpm",
+)
+
 
 tld_extractor = tldextract.TLDExtract()
 registrable_domain_cache = {}
@@ -130,6 +142,10 @@ def all_subpage_links(a_raw_html, a_page_url, a_crawled_registrable_domain):
         path = url_parts.path
         path_segments = [segment for segment in path.split("/") if segment]
         if len(path_segments) < 1:            # homepage (depth 0) excluded
+            continue
+
+        # drop links that point at a file (pdf/png/zip/...), not a web page
+        if path_segments[-1].lower().endswith(non_page_extensions):
             continue
 
         normalized_path = "/" + "/".join(path_segments)

@@ -82,21 +82,43 @@ def og_type_is_content(a_og_type):
     return value not in non_content_og_types
 
 
-# static GET via wget; returns the HTML text, or None when nothing was retrieved
+# ======================= CONSIDER ONLY VALID HTML DOCUMENTS 2ND STEP ===========================
+# static GET via wget -----------> returns the HTML text only for a VALID web page: final HTTP status
+# 2xx/3xx AND Content-Type text/html. anything else (error status, or a non-HTML body like
+# a pdf/json/image served at 200) returns None so it is treated as "no page".
 def fetch_html(url_to_analyze):
     try:
         completed = subprocess.run(
-            ["wget", "-q", "-O", "-",
+            ["wget", "-S", "-O", "-",
              "--timeout=" + str(wget_timeout_seconds), "--tries=2",
              "--max-redirect=5", "--no-check-certificate",
              "-U", user_agent, url_to_analyze],
             capture_output=True, timeout=subprocess_timeout_seconds)
     except Exception:
         return None
-    
+
     if completed.returncode != 0 or not completed.stdout:
         return None
+
+    # -----> wget -S writes the server response headers to stderr (one block per redirect hop).
+    header_text = completed.stderr.decode("utf-8", "ignore")
+
+    # KEEP THE FINAL HTTP status = the last status line after any redirects
+    status_codes = re.findall(r"HTTP/\S+\s+(\d{3})", header_text)
+    if not status_codes:
+        return None
     
+
+    final_status = int(status_codes[-1])
+    if not (200 <= final_status < 400):
+        return None
+
+    # final Content-Type must be HTML
+    content_types = re.findall(r"(?im)^\s*Content-Type:\s*(.+)$", header_text)
+    final_content_type = content_types[-1].strip().lower() if content_types else ""
+    if "text/html" not in final_content_type:
+        return None
+
     return completed.stdout.decode("utf-8", "ignore")
 
 

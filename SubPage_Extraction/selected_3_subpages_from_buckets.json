@@ -808,24 +808,21 @@
     {
       "url": "https://auto.drom.ru/212",
       "reasons": [
-        "url:numeric_id",
-        "fetch_failed"
+        "url:numeric_id"
       ],
       "bucket": 3
     },
     {
       "url": "https://auto.drom.ru/lynk_and_co",
       "reasons": [
-        "url:title_slug",
-        "fetch_failed"
+        "url:title_slug"
       ],
       "bucket": 3
     },
     {
       "url": "https://auto.drom.ru/moscow/audi/q5/787437085.html",
       "reasons": [
-        "url:numeric_id",
-        "fetch_failed"
+        "url:numeric_id"
       ],
       "bucket": 3
     }
@@ -1372,14 +1369,6 @@
   ],
   "businessinsider.com.pl": [
     {
-      "url": "https://businessinsider.com.pl/biznes/fortuna-lionela-messiego-rosnie-oto-kulisy-jego-lukratywnych-inwestycji/rk3gk37",
-      "reasons": [
-        "og:type=article",
-        "url:title_slug"
-      ],
-      "bucket": 1
-    },
-    {
       "url": "https://businessinsider.com.pl/biznes/kujawy-i-wielkopolska-najbardziej-zagrozone-brakiem-wody-co-zaleca-dr-hab-katarzyna/tvpttp3",
       "reasons": [
         "og:type=article",
@@ -1389,6 +1378,14 @@
     },
     {
       "url": "https://businessinsider.com.pl/biznes/linie-lotnicze-w-tarapatach-szykuja-sie-upadlosci-i-przejecia-polski-lot-do/vms2peb",
+      "reasons": [
+        "og:type=article",
+        "url:title_slug"
+      ],
+      "bucket": 1
+    },
+    {
+      "url": "https://businessinsider.com.pl/biznes/mark-esper-o-dzialaniach-usa-wobec-iranu-bombardowania-to-za-malo/s91j6zr",
       "reasons": [
         "og:type=article",
         "url:title_slug"
@@ -1503,17 +1500,16 @@
       "bucket": 2
     },
     {
-      "url": "http://services.google.com/fh/files/misc/notebooklm_gfe_one_pager.pdf",
+      "url": "https://cloud.google.com/find-a-partner",
       "reasons": [
-        "url:title_slug",
-        "fetch_failed"
+        "url:title_slug"
       ],
       "bucket": 3
     },
     {
-      "url": "https://cloud.google.com/find-a-partner",
+      "url": "https://support.google.com/a/answer/7370133",
       "reasons": [
-        "url:title_slug"
+        "url:numeric_id"
       ],
       "bucket": 3
     }
@@ -2237,7 +2233,8 @@
     {
       "url": "https://duckduckgo.com/cloudflare-radar-report",
       "reasons": [
-        "url:title_slug"
+        "url:title_slug",
+        "fetch_failed"
       ],
       "bucket": 3
     },
@@ -3327,7 +3324,7 @@
     {
       "url": "https://forum.gamer.com.tw/B.php",
       "reasons": [
-        "no_content_signal"
+        "fetch_failed"
       ],
       "bucket": 5
     },
@@ -3341,7 +3338,7 @@
     {
       "url": "https://forum.gamer.com.tw/applyBM",
       "reasons": [
-        "fetch_failed"
+        "no_content_signal"
       ],
       "bucket": 5
     }
@@ -3364,7 +3361,8 @@
     {
       "url": "https://sell.aliexpress.com/zh/__pc/newsellerlanding.htm",
       "reasons": [
-        "url:title_slug"
+        "url:title_slug",
+        "fetch_failed"
       ],
       "bucket": 3
     }
@@ -4375,7 +4373,7 @@
       "bucket": 1
     },
     {
-      "url": "https://help.x.com/en/resources/a-safer-twitter",
+      "url": "https://help.x.com/en/safety-and-security/x-privacy-settings",
       "reasons": [
         "og:type=article",
         "url:title_slug"
@@ -4383,7 +4381,7 @@
       "bucket": 1
     },
     {
-      "url": "https://help.x.com/en/rules-and-policies/x-cookies",
+      "url": "https://help.x.com/en/using-x/how-to-post",
       "reasons": [
         "og:type=article",
         "url:title_slug"
@@ -4690,13 +4688,6 @@
   ],
   "hot-sex-tube.com": [
     {
-      "url": "https://hot-sex-tube.com/2257.txt",
-      "reasons": [
-        "url:numeric_id"
-      ],
-      "bucket": 3
-    },
-    {
       "url": "https://hot-sex-tube.com/categories/18-19_year_old/1.html",
       "reasons": [
         "url:title_slug"
@@ -4707,6 +4698,13 @@
       "url": "https://hot-sex-tube.com/categories/18_year_old/1.html",
       "reasons": [
         "url:title_slug"
+      ],
+      "bucket": 3
+    },
+    {
+      "url": "https://hot-sex-tube.com/categories/69/1.html",
+      "reasons": [
+        "url:numeric_id"
       ],
       "bucket": 3
     }
@@ -5093,14 +5091,6 @@
   ],
   "irecommend.ru": [
     {
-      "url": "https://irecommend.ru/content/byudzhetnaya-korzinka-iz-fiks-praisa-pokazhu-neskolko-variantov-ispolzovaniya",
-      "reasons": [
-        "og:type=article",
-        "url:title_slug"
-      ],
-      "bucket": 1
-    },
-    {
       "url": "https://irecommend.ru/catalog/list/10",
       "reasons": [
         "url:numeric_id",
@@ -5110,6 +5100,14 @@
     },
     {
       "url": "https://irecommend.ru/catalog/list/11",
+      "reasons": [
+        "url:numeric_id",
+        "fetch_failed"
+      ],
+      "bucket": 3
+    },
+    {
+      "url": "https://irecommend.ru/catalog/list/3768",
       "reasons": [
         "url:numeric_id",
         "fetch_failed"
@@ -5370,14 +5368,6 @@
   ],
   "jaya9bangladesh.com": [
     {
-      "url": "https://jaya9bangladesh.com/jaya9_2024_new.apk",
-      "reasons": [
-        "url:numeric_id",
-        "url:title_slug"
-      ],
-      "bucket": 3
-    },
-    {
       "url": "https://jaya9bangladesh.com/casino",
       "reasons": [
         "no_content_signal",
@@ -5387,6 +5377,14 @@
     },
     {
       "url": "https://jaya9bangladesh.com/crash",
+      "reasons": [
+        "no_content_signal",
+        "og:type=website"
+      ],
+      "bucket": 5
+    },
+    {
+      "url": "https://jaya9bangladesh.com/cricket",
       "reasons": [
         "no_content_signal",
         "og:type=website"
@@ -6049,6 +6047,14 @@
   ],
   "liteapks.com": [
     {
+      "url": "https://liteapks.com/about-liteapks-team",
+      "reasons": [
+        "og:type=article",
+        "url:title_slug"
+      ],
+      "bucket": 1
+    },
+    {
       "url": "https://liteapks.com/after-world-zombie-survival.html",
       "reasons": [
         "og:type=article",
@@ -6058,14 +6064,6 @@
     },
     {
       "url": "https://liteapks.com/age-of-empires-official-is-coming-to-mobile.html",
-      "reasons": [
-        "og:type=article",
-        "url:title_slug"
-      ],
-      "bucket": 1
-    },
-    {
-      "url": "https://liteapks.com/browse-apps-games",
       "reasons": [
         "og:type=article",
         "url:title_slug"
@@ -6117,7 +6115,8 @@
     {
       "url": "https://litnet.com/ru/personal-data-policy",
       "reasons": [
-        "url:title_slug"
+        "url:title_slug",
+        "fetch_failed"
       ],
       "bucket": 3
     }
@@ -6308,7 +6307,7 @@
       "bucket": 4
     },
     {
-      "url": "https://loveread.ec/genres.php",
+      "url": "https://loveread.ec/page.php",
       "reasons": [
         "text_heavy"
       ],
@@ -6408,7 +6407,8 @@
     {
       "url": "https://sell.aliexpress.com/zh/__pc/newsellerlanding.htm",
       "reasons": [
-        "url:title_slug"
+        "url:title_slug",
+        "fetch_failed"
       ],
       "bucket": 3
     }
@@ -6724,7 +6724,7 @@
   ],
   "m.flashscore.co.za": [
     {
-      "url": "https://m.flashscore.co.za/basketball",
+      "url": "https://m.flashscore.co.za/baseball",
       "reasons": [
         "text_heavy"
       ],
@@ -7452,21 +7452,21 @@
   ],
   "m.ss.com": [
     {
-      "url": "https://m.ss.com/lv/entertainment",
+      "url": "https://m.ss.com/lv/agriculture",
       "reasons": [
         "text_heavy"
       ],
       "bucket": 4
     },
     {
-      "url": "https://m.ss.com/lv/feedback",
+      "url": "https://m.ss.com/lv/animals",
       "reasons": [
         "text_heavy"
       ],
       "bucket": 4
     },
     {
-      "url": "https://m.ss.com/lv/for-children",
+      "url": "https://m.ss.com/lv/construction",
       "reasons": [
         "text_heavy"
       ],
@@ -7881,15 +7881,15 @@
   ],
   "member.rakuten-sec.co.jp": [
     {
-      "url": "https://member.rakuten-sec.co.jp/web/automatic-operation-service",
+      "url": "https://member.rakuten-sec.co.jp/web/campaign/20260615-01",
       "reasons": [
         "og:type=article",
-        "url:title_slug"
+        "url:numeric_id"
       ],
       "bucket": 1
     },
     {
-      "url": "https://member.rakuten-sec.co.jp/web/campaign/20260615-01",
+      "url": "https://member.rakuten-sec.co.jp/web/campaign/marathon_summer2026",
       "reasons": [
         "og:type=article",
         "url:numeric_id"
@@ -8029,7 +8029,7 @@
   ],
   "mir-chitki.ru": [
     {
-      "url": "https://mir-chitki.ru/romany/7078-malenkoe-chudo-dlja-nevernogo.html",
+      "url": "https://mir-chitki.ru/romany/6234-nevesta-na-zamenu.html",
       "reasons": [
         "og:type=article",
         "url:numeric_id",
@@ -8038,7 +8038,7 @@
       "bucket": 1
     },
     {
-      "url": "https://mir-chitki.ru/romany/7098-razvod-vtoraja-zhizn-dlja-popadanki.html",
+      "url": "https://mir-chitki.ru/romany/7072-nevesta-po-prikazu-ili-kogda-svekrov-vedma.html",
       "reasons": [
         "og:type=article",
         "url:numeric_id",
@@ -8047,7 +8047,7 @@
       "bucket": 1
     },
     {
-      "url": "https://mir-chitki.ru/romany/8636-razvod-i-vyzhzhennaja-istinnost.html",
+      "url": "https://mir-chitki.ru/romany/7086-izmena-uhodja-uhodi.html",
       "reasons": [
         "og:type=article",
         "url:numeric_id",
@@ -8092,18 +8092,19 @@
       "bucket": 3
     },
     {
-      "url": "https://mitsui-shopping-park.com/lalaport/special/pdf/lalaport_bbcc.pdf",
+      "url": "https://mitsui-shopping-park.com/policy",
       "reasons": [
         "text_heavy"
       ],
       "bucket": 4
     },
     {
-      "url": "https://mitsui-shopping-park.com/lalaport/special/pdf/lalaport_shanhai.pdf",
+      "url": "https://mitsui-shopping-park.com/arcakit",
       "reasons": [
-        "text_heavy"
+        "no_content_signal",
+        "og:type=website"
       ],
-      "bucket": 4
+      "bucket": 5
     }
   ],
   "mlookalporno.com": [
@@ -8641,14 +8642,16 @@
     {
       "url": "https://ncert.nic.in/aac2021.php",
       "reasons": [
-        "url:numeric_id"
+        "url:numeric_id",
+        "fetch_failed"
       ],
       "bucket": 3
     },
     {
       "url": "https://ncert.nic.in/all-india-school-education-survey.php",
       "reasons": [
-        "url:title_slug"
+        "url:title_slug",
+        "fetch_failed"
       ],
       "bucket": 3
     }
@@ -9447,10 +9450,11 @@
       "bucket": 1
     },
     {
-      "url": "https://www.ebay.com/b/Toys-Hobbies/220/bn_1865497",
+      "url": "https://www.ebay.com/b/Cell-Phones-Smart-Watches-Accessories/15032/bn_1865441",
       "reasons": [
         "og:type=ebay-objects:ecommerce",
-        "url:numeric_id"
+        "url:numeric_id",
+        "url:title_slug"
       ],
       "bucket": 1
     }
@@ -9746,14 +9750,16 @@
     {
       "url": "https://pl.escort.club/anons/114579.html",
       "reasons": [
-        "url:numeric_id"
+        "url:numeric_id",
+        "fetch_failed"
       ],
       "bucket": 3
     },
     {
       "url": "https://pl.escort.club/anons/115595.html",
       "reasons": [
-        "url:numeric_id"
+        "url:numeric_id",
+        "fetch_failed"
       ],
       "bucket": 3
     },
@@ -10324,7 +10330,8 @@
     {
       "url": "https://sell.aliexpress.com/zh/__pc/newsellerlanding.htm",
       "reasons": [
-        "url:title_slug"
+        "url:title_slug",
+        "fetch_failed"
       ],
       "bucket": 3
     }
@@ -10678,14 +10685,14 @@
       "bucket": 3
     },
     {
-      "url": "https://onlinesbi.sbi.bank.in/documents/GSTN_Transactions_Updation_Process.pdf",
+      "url": "https://retail.sbi.bank.in/sbijava/retail/html/annex_gdpr_consent.html",
       "reasons": [
         "url:title_slug"
       ],
       "bucket": 3
     },
     {
-      "url": "https://onlinesbi.sbi.bank.in/documents/Yono_Business_Fair_Practice_Lending_Code.pdf",
+      "url": "https://sbi.bank.in/web/personal-banking/misc/bharat-aadhaar-seeding-enabler",
       "reasons": [
         "url:title_slug"
       ],
@@ -11318,19 +11325,22 @@
       "bucket": 1
     },
     {
-      "url": "https://medium.seznam.cz/autor/1000-a-jeden-pribeh-27016",
+      "url": "https://medium.seznam.cz/clanek/1000-a-jeden-pribeh-hubeny-kluk-s-brylemi-co-delal-balet-van-damme-bral-12-milionu-za-film-a-10-gramu-kokainu-denne-297892",
       "reasons": [
+        "og:type=article",
         "url:numeric_id",
         "url:title_slug"
       ],
-      "bucket": 3
+      "bucket": 1
     },
     {
-      "url": "https://medium.seznam.cz/autor/npc-23005",
+      "url": "https://medium.seznam.cz/clanek/npc-vsichni-se-mu-smali-jenze-letajici-sud-ukazal-budoucnost-letectvi-297456",
       "reasons": [
-        "url:numeric_id"
+        "og:type=article",
+        "url:numeric_id",
+        "url:title_slug"
       ],
-      "bucket": 3
+      "bucket": 1
     }
   ],
   "secure.bankofamerica.com": [
@@ -11395,11 +11405,11 @@
       "bucket": 2
     },
     {
-      "url": "https://www.icicidirect.com/mailcontent/list_of_licenses_held_by_icici_securities.pdf",
+      "url": "https://secure.icicidirect.com/accountopening",
       "reasons": [
-        "url:title_slug"
+        "text_heavy"
       ],
-      "bucket": 3
+      "bucket": 4
     }
   ],
   "sede.sepe.gob.es": [
@@ -11473,23 +11483,21 @@
   ],
   "services.gst.gov.in": [
     {
-      "url": "https://tutorial.gst.gov.in/offlineutilities/returns/GSTR_11_Offline_Utility.zip",
-      "reasons": [
-        "url:title_slug",
-        "fetch_failed"
-      ],
-      "bucket": 3
-    },
-    {
-      "url": "https://tutorial.gst.gov.in/offlineutilities/returns/GSTR_6_Offline_Utility.zip",
-      "reasons": [
-        "url:title_slug",
-        "fetch_failed"
-      ],
-      "bucket": 3
-    },
-    {
       "url": "https://einvoice.gst.gov.in/einvoice/dashboard",
+      "reasons": [
+        "fetch_failed"
+      ],
+      "bucket": 5
+    },
+    {
+      "url": "https://payment.gst.gov.in/payment",
+      "reasons": [
+        "fetch_failed"
+      ],
+      "bucket": 5
+    },
+    {
+      "url": "https://payment.gst.gov.in/payment/auth",
       "reasons": [
         "fetch_failed"
       ],
@@ -11498,25 +11506,25 @@
   ],
   "sewayojan.up.nic.in": [
     {
-      "url": "https://sewayojan.up.nic.in/NEWS/Mahatma230326.pdf",
+      "url": "https://sewayojan.up.nic.in/MOUnNHRDN.aspx",
       "reasons": [
-        "url:numeric_id"
+        "text_heavy"
       ],
-      "bucket": 3
+      "bucket": 4
     },
     {
-      "url": "https://sewayojan.up.nic.in/NEWS/Unijaunpur180326.pdf",
+      "url": "https://sewayojan.up.nic.in/aboutus.aspx",
       "reasons": [
-        "url:numeric_id"
+        "text_heavy"
       ],
-      "bucket": 3
+      "bucket": 4
     },
     {
-      "url": "https://sewayojan.up.nic.in/NEWS/gorakhpur010426.pdf",
+      "url": "https://sewayojan.up.nic.in/faq.aspx",
       "reasons": [
-        "url:numeric_id"
+        "text_heavy"
       ],
-      "bucket": 3
+      "bucket": 4
     }
   ],
   "sex-studentki.team": [
@@ -11724,14 +11732,14 @@
       "bucket": 4
     },
     {
-      "url": "https://sinoptik.ua/pohoda/cherkasy",
+      "url": "https://sinoptik.ua/pohoda/bila-tserkva",
       "reasons": [
         "text_heavy"
       ],
       "bucket": 4
     },
     {
-      "url": "https://sinoptik.ua/pohoda/dnipro",
+      "url": "https://sinoptik.ua/pohoda/cherkasy",
       "reasons": [
         "text_heavy"
       ],
@@ -12122,15 +12130,14 @@
       "bucket": 3
     },
     {
-      "url": "https://ssc.gov.in/api/attachment/uploads/masterData/Others/debarreds_as_of_6th_April_2026_060426.pdf",
+      "url": "https://ssc.gov.in/for-candidates/form-of-certificates",
       "reasons": [
-        "url:numeric_id",
         "url:title_slug"
       ],
       "bucket": 3
     },
     {
-      "url": "https://ssc.gov.in/for-candidates/form-of-certificates",
+      "url": "https://ssc.gov.in/for-candidates/previous-year-question-paper",
       "reasons": [
         "url:title_slug"
       ],
@@ -12996,14 +13003,14 @@
       "bucket": 3
     },
     {
-      "url": "https://uchi.ru/index_static/facts/Prikaz_Ministerstva_Prosvescheniya.pdf",
+      "url": "https://uchi.ru/podgotovka-k-uroku",
       "reasons": [
         "url:title_slug"
       ],
       "bucket": 3
     },
     {
-      "url": "https://uchi.ru/podgotovka-k-uroku",
+      "url": "https://uchi.ru/rules_of_recommendation_technologies",
       "reasons": [
         "url:title_slug"
       ],
@@ -13365,25 +13372,25 @@
   ],
   "vnexpress.net": [
     {
-      "url": "https://vnexpress.net/13-trieu-thue-bao-di-dong-co-nguy-co-bi-thu-hoi-5096830.html",
-      "reasons": [
-        "og:type=article",
-        "url:numeric_id",
-        "url:title_slug"
-      ],
-      "bucket": 1
-    },
-    {
-      "url": "https://vnexpress.net/4-tran-thu-hung-giua-anh-va-argentina-o-world-cup-5096664.html",
-      "reasons": [
-        "og:type=article",
-        "url:numeric_id",
-        "url:title_slug"
-      ],
-      "bucket": 1
-    },
-    {
       "url": "https://vnexpress.net/5-thoi-quen-buoi-chieu-ho-tro-on-dinh-huyet-ap-5096729.html",
+      "reasons": [
+        "og:type=article",
+        "url:numeric_id",
+        "url:title_slug"
+      ],
+      "bucket": 1
+    },
+    {
+      "url": "https://vnexpress.net/5-viec-nen-lam-moi-ngay-giup-giam-nguy-co-ung-thu-5096370.html",
+      "reasons": [
+        "og:type=article",
+        "url:numeric_id",
+        "url:title_slug"
+      ],
+      "bucket": 1
+    },
+    {
+      "url": "https://vnexpress.net/an-rau-muong-tai-duoc-khong-5094373.html",
       "reasons": [
         "og:type=article",
         "url:numeric_id",
@@ -13394,13 +13401,6 @@
   ],
   "voters.eci.gov.in": [
     {
-      "url": "https://voters.eci.gov.in/EciInitiatives/30_Initiatives_of_ECI.pdf",
-      "reasons": [
-        "url:title_slug"
-      ],
-      "bucket": 3
-    },
-    {
       "url": "https://www.eci.gov.in/website-policy/privacy-policy-r5",
       "reasons": [
         "url:title_slug",
@@ -13410,6 +13410,13 @@
     },
     {
       "url": "https://ecinet.eci.gov.in/home/eciUpdates",
+      "reasons": [
+        "fetch_failed"
+      ],
+      "bucket": 5
+    },
+    {
+      "url": "https://www.eci.gov.in/about-eci",
       "reasons": [
         "fetch_failed"
       ],
@@ -13506,7 +13513,7 @@
       "bucket": 1
     },
     {
-      "url": "https://weathernews.jp/about_forecast",
+      "url": "https://weathernews.jp/golf",
       "reasons": [
         "og:type=article"
       ],
@@ -14219,25 +14226,25 @@
   ],
   "www.accuweather.com": [
     {
+      "url": "https://www.accuweather.com/en/accuweather-ready/heat-exhaustion-vs-heatstroke-what-are-the-warning-signs-and-how-should-you-react/1659907",
+      "reasons": [
+        "og:type=article",
+        "url:numeric_id",
+        "url:title_slug"
+      ],
+      "bucket": 1
+    },
+    {
+      "url": "https://www.accuweather.com/en/climate/el-ni%c3%b1o-could-trigger-marine-heat-waves-that-threaten-pacific-ocean-wildlife/1902313",
+      "reasons": [
+        "og:type=article",
+        "url:numeric_id",
+        "url:title_slug"
+      ],
+      "bucket": 1
+    },
+    {
       "url": "https://www.accuweather.com/en/climate/el-nino-is-here-and-its-developing-faster-than-most/1900366",
-      "reasons": [
-        "og:type=article",
-        "url:numeric_id",
-        "url:title_slug"
-      ],
-      "bucket": 1
-    },
-    {
-      "url": "https://www.accuweather.com/en/climate/heat-disrupts-animal-brains-affecting-behavior-and-learning-ability-studies-show/1897268",
-      "reasons": [
-        "og:type=article",
-        "url:numeric_id",
-        "url:title_slug"
-      ],
-      "bucket": 1
-    },
-    {
-      "url": "https://www.accuweather.com/en/leisure-recreation/how-to-protect-yourself-and-your-yard-from-mosquitoes-this-season/1904047",
       "reasons": [
         "og:type=article",
         "url:numeric_id",
@@ -14387,7 +14394,8 @@
     {
       "url": "https://sell.aliexpress.com/zh/__pc/newsellerlanding.htm",
       "reasons": [
-        "url:title_slug"
+        "url:title_slug",
+        "fetch_failed"
       ],
       "bucket": 3
     }
@@ -14767,8 +14775,7 @@
     {
       "url": "https://www.ancestry.com/search/categories/35",
       "reasons": [
-        "url:numeric_id",
-        "fetch_failed"
+        "url:numeric_id"
       ],
       "bucket": 3
     },
@@ -15199,24 +15206,23 @@
   ],
   "www.bancodevenezuela.com": [
     {
-      "url": "https://www.bancodevenezuela.com/files/Tarifario_Abril_2026.pdf",
+      "url": "https://www.bancodevenezuela.com/hub_bdv_innova_empresas",
       "reasons": [
-        "url:numeric_id",
         "url:title_slug"
       ],
       "bucket": 3
     },
     {
-      "url": "https://www.bancodevenezuela.com/files/Tasas ALCO Abril 2026.pdf",
+      "url": "https://www.bancodevenezuela.com/hub_bdv_innova_personas",
       "reasons": [
-        "url:numeric_id"
+        "url:title_slug"
       ],
       "bucket": 3
     },
     {
-      "url": "https://www.bancodevenezuela.com/files/informesgestion/Informe II Semestre 2024 Estados financieros auditados.pdf",
+      "url": "https://www.bancodevenezuela.com/profesionales-libre-ejercicio",
       "reasons": [
-        "url:numeric_id"
+        "url:title_slug"
       ],
       "bucket": 3
     }
@@ -15340,14 +15346,6 @@
   ],
   "www.betika.com": [
     {
-      "url": "https://cdn.betika.com/int_assets/ke/pages/betika-responsible-gaming-policy-2023.pdf",
-      "reasons": [
-        "url:numeric_id",
-        "url:title_slug"
-      ],
-      "bucket": 3
-    },
-    {
       "url": "https://www.betika.com/en-ke/jackpots/must-be-won",
       "reasons": [
         "url:title_slug"
@@ -15357,6 +15355,14 @@
     {
       "url": "https://www.betika.com/en-ke/legal/betika-website-and-mobile-app-privacy-policy",
       "reasons": [
+        "url:title_slug"
+      ],
+      "bucket": 3
+    },
+    {
+      "url": "https://www.betika.com/en-ke/promotion/static/2up-world-cup-early-payout/60",
+      "reasons": [
+        "url:numeric_id",
         "url:title_slug"
       ],
       "bucket": 3
@@ -15528,7 +15534,7 @@
       "bucket": 1
     },
     {
-      "url": "https://www.bible.com/bible/111/GEN.3.NIV",
+      "url": "https://www.bible.com/bible/111/GEN.6.NIV",
       "reasons": [
         "og:type=book",
         "url:numeric_id"
@@ -15890,9 +15896,9 @@
     {
       "url": "https://www.boyfriendtv.com/documents/cookie-policy",
       "reasons": [
-        "fetch_failed"
+        "text_heavy"
       ],
-      "bucket": 5
+      "bucket": 4
     },
     {
       "url": "https://www.boyfriendtv.com/documents/parental-control",
@@ -16015,15 +16021,15 @@
     {
       "url": "https://www.canva.com/ai-code-generator",
       "reasons": [
-        "url:title_slug"
+        "url:title_slug",
+        "fetch_failed"
       ],
       "bucket": 3
     },
     {
       "url": "https://www.canva.com/ai-image-generator",
       "reasons": [
-        "url:title_slug",
-        "fetch_failed"
+        "url:title_slug"
       ],
       "bucket": 3
     }
@@ -16130,25 +16136,26 @@
   ],
   "www.ceneo.pl": [
     {
-      "url": "https://www.ceneo.pl/wydarzenia/codzienne-zakupy",
+      "url": "https://www.ceneo.pl/Kapsulki_do_ekspresow",
       "reasons": [
-        "og:type=article"
-      ],
-      "bucket": 2
-    },
-    {
-      "url": "https://www.ceneo.pl/wydarzenia/superceny",
-      "reasons": [
-        "og:type=article"
-      ],
-      "bucket": 2
-    },
-    {
-      "url": "https://biznes.ceneo.pl/reklama-w-ceneo",
-      "reasons": [
+        "og:type=product.group",
         "url:title_slug"
       ],
-      "bucket": 3
+      "bucket": 1
+    },
+    {
+      "url": "https://www.ceneo.pl/poradniki",
+      "reasons": [
+        "og:type=article"
+      ],
+      "bucket": 2
+    },
+    {
+      "url": "https://www.ceneo.pl/rankingi",
+      "reasons": [
+        "og:type=article"
+      ],
+      "bucket": 2
     }
   ],
   "www.cgtn.com": [
@@ -16373,7 +16380,7 @@
       "bucket": 1
     },
     {
-      "url": "https://www.cmoa.jp/campaign/pickup/260619_wrseiacshf",
+      "url": "https://www.cmoa.jp/campaign/pickup/260623_ycwdsh",
       "reasons": [
         "og:type=article",
         "url:numeric_id"
@@ -16381,7 +16388,7 @@
       "bucket": 1
     },
     {
-      "url": "https://www.cmoa.jp/campaign/pickup/260623_ycwdsh",
+      "url": "https://www.cmoa.jp/campaign/pickup/260628_kgtskhsknf",
       "reasons": [
         "og:type=article",
         "url:numeric_id"
@@ -16805,30 +16812,26 @@
   ],
   "www.delish.com": [
     {
-      "url": "https://www.delish.com/about/a26446372/about-us-contact-information-team-masthead",
+      "url": "https://service.delish.com/login",
       "reasons": [
-        "og:type=article",
+        "og:type=article"
+      ],
+      "bucket": 2
+    },
+    {
+      "url": "https://store.delish.com/delish-unlimited-all-access-membership-2999.html",
+      "reasons": [
         "url:numeric_id",
         "url:title_slug"
       ],
-      "bucket": 1
+      "bucket": 3
     },
     {
-      "url": "https://www.delish.com/about/a34893408/delish-unlimited-membership-announcement",
+      "url": "https://store.delish.com/delish-unlimited-all-access-membership-3.html",
       "reasons": [
-        "og:type=article",
-        "url:numeric_id",
         "url:title_slug"
       ],
-      "bucket": 1
-    },
-    {
-      "url": "https://www.delish.com/about/a41645/community-guidelines",
-      "reasons": [
-        "og:type=article",
-        "url:numeric_id"
-      ],
-      "bucket": 1
+      "bucket": 3
     }
   ],
   "www.delta.com": [
@@ -17296,7 +17299,7 @@
       "bucket": 1
     },
     {
-      "url": "https://www.ebay.co.uk/b/bn_1624265",
+      "url": "https://www.ebay.co.uk/b/bn_15303498",
       "reasons": [
         "og:type=ebay-objects:ecommerce",
         "url:numeric_id"
@@ -17314,6 +17317,15 @@
   ],
   "www.ebay.com": [
     {
+      "url": "https://www.ebay.com/b/ATV-Side-by-Side-UTV-Parts-Accessories/43962/bn_562707",
+      "reasons": [
+        "og:type=ebay-objects:ecommerce",
+        "url:numeric_id",
+        "url:title_slug"
+      ],
+      "bucket": 1
+    },
+    {
       "url": "https://www.ebay.com/b/Action-Figures-Accessories/246/bn_1648288",
       "reasons": [
         "og:type=ebay-objects:ecommerce",
@@ -17323,19 +17335,10 @@
       "bucket": 1
     },
     {
-      "url": "https://www.ebay.com/b/Art/550/bn_1853728",
+      "url": "https://www.ebay.com/b/Archery-Equipment/20835/bn_1971493",
       "reasons": [
         "og:type=ebay-objects:ecommerce",
         "url:numeric_id"
-      ],
-      "bucket": 1
-    },
-    {
-      "url": "https://www.ebay.com/b/Automotive-Tools-Supplies/34998/bn_1865501",
-      "reasons": [
-        "og:type=ebay-objects:ecommerce",
-        "url:numeric_id",
-        "url:title_slug"
       ],
       "bucket": 1
     }
@@ -17378,7 +17381,7 @@
       "bucket": 1
     },
     {
-      "url": "https://www.ebay.it/b/Accessori-per-videogiochi-e-console/54968/bn_16582137",
+      "url": "https://www.ebay.it/b/Accessori-per-cellulari-e-smartphone/9394/bn_16547911",
       "reasons": [
         "og:type=ebay-objects:ecommerce",
         "url:numeric_id",
@@ -17387,10 +17390,11 @@
       "bucket": 1
     },
     {
-      "url": "https://www.ebay.it/b/Action-figure/246/bn_16582145",
+      "url": "https://www.ebay.it/b/Articoli-da-equitazione/3153/bn_16582444",
       "reasons": [
         "og:type=ebay-objects:ecommerce",
-        "url:numeric_id"
+        "url:numeric_id",
+        "url:title_slug"
       ],
       "bucket": 1
     }
@@ -17797,10 +17801,10 @@
     {
       "url": "https://www.esquire.com/about/a2159/contact-us",
       "reasons": [
-        "og:type=article",
-        "url:numeric_id"
+        "url:numeric_id",
+        "fetch_failed"
       ],
-      "bucket": 1
+      "bucket": 3
     }
   ],
   "www.etoland.co.kr": [
@@ -18227,7 +18231,7 @@
       "bucket": 4
     },
     {
-      "url": "https://www.flashscore.mobi/basketball",
+      "url": "https://www.flashscore.mobi/tennis",
       "reasons": [
         "text_heavy"
       ],
@@ -19372,7 +19376,7 @@
       "bucket": 3
     },
     {
-      "url": "https://images.hsn.com/images/prod/2025/pdf/HSN-AnnualEducationalandInformationProgramming(2024).pdf",
+      "url": "https://www.hsn.com/Article/FCC/9621",
       "reasons": [
         "url:numeric_id",
         "fetch_failed"
@@ -19399,7 +19403,7 @@
       "bucket": 1
     },
     {
-      "url": "https://www.huffingtonpost.jp/entry/family-mart-bbo-off-2605_jp_69f83975e4b0ed2b90e2a8a9",
+      "url": "https://www.huffingtonpost.jp/entry/huffpost-mediaguide_jp_621f4e2fe4b018aad3c12424",
       "reasons": [
         "og:type=article",
         "url:numeric_id",
@@ -21079,14 +21083,14 @@
       "bucket": 3
     },
     {
-      "url": "https://www.livescore.cz/american-football",
+      "url": "https://www.livescore.cz/baseball",
       "reasons": [
         "text_heavy"
       ],
       "bucket": 4
     },
     {
-      "url": "https://www.livescore.cz/baseball",
+      "url": "https://www.livescore.cz/basketball",
       "reasons": [
         "text_heavy"
       ],
@@ -21298,15 +21302,6 @@
   ],
   "www.marksandspencer.com": [
     {
-      "url": "https://corporate.marksandspencer.com/sites/marksandspencer/files/2025-05/Modern_Slavery_Statement_2025.pdf",
-      "reasons": [
-        "url:date",
-        "url:numeric_id",
-        "url:title_slug"
-      ],
-      "bucket": 3
-    },
-    {
       "url": "https://www.marksandspencer.com/c/brands/az-of-brands",
       "reasons": [
         "url:title_slug"
@@ -21315,6 +21310,13 @@
     },
     {
       "url": "https://www.marksandspencer.com/c/food-and-wine",
+      "reasons": [
+        "url:title_slug"
+      ],
+      "bucket": 3
+    },
+    {
+      "url": "https://www.marksandspencer.com/c/food-and-wine/cooking/recipes",
       "reasons": [
         "url:title_slug"
       ],
@@ -21718,8 +21720,7 @@
     {
       "url": "https://www.mobiledokan.com/compare-mobiles/apple-iphone-16-pro-max-vs-apple-iphone-17-pro-max",
       "reasons": [
-        "url:title_slug",
-        "fetch_failed"
+        "url:title_slug"
       ],
       "bucket": 3
     },
@@ -23195,11 +23196,11 @@
       "bucket": 4
     },
     {
-      "url": "https://www.ptt.cc/index.source.html",
+      "url": "https://www.ptt.cc/about.html",
       "reasons": [
-        "text_heavy"
+        "fetch_failed"
       ],
-      "bucket": 4
+      "bucket": 5
     }
   ],
   "www.publi24.ro": [
@@ -25161,25 +25162,24 @@
   ],
   "www.tjk.org": [
     {
-      "url": "https://medya-cdn.tjk.org/resmiprogram/2026\\20260628-resmi-program-İstanbul.pdf",
-      "reasons": [
-        "url:numeric_id",
-        "url:title_slug"
-      ],
-      "bucket": 3
-    },
-    {
-      "url": "https://medya-cdn.tjk.org/resmiprogram/2026\\20260628-resmi-program-İzmir.pdf",
-      "reasons": [
-        "url:numeric_id",
-        "url:title_slug"
-      ],
-      "bucket": 3
-    },
-    {
       "url": "https://www.tjk.org/TR/YarisSever/News/Page/52608",
       "reasons": [
         "url:numeric_id"
+      ],
+      "bucket": 3
+    },
+    {
+      "url": "https://www.tjk.org/TR/YarisSever/News/Page/52609",
+      "reasons": [
+        "url:numeric_id"
+      ],
+      "bucket": 3
+    },
+    {
+      "url": "https://www.tjk.org/TR/YarisSever/News/Page/52610",
+      "reasons": [
+        "url:numeric_id",
+        "fetch_failed"
       ],
       "bucket": 3
     }
@@ -25372,23 +25372,21 @@
   ],
   "www.truper.com": [
     {
-      "url": "https://catalogovigente.truper.com/catalogo_nacional_2025.pdf",
+      "url": "https://www.truper.com/CatVigente/2-en-2",
       "reasons": [
-        "url:numeric_id",
         "url:title_slug"
       ],
       "bucket": 3
     },
     {
-      "url": "https://www.truper.com/CatVigente/2-en-2",
+      "url": "https://www.truper.com/acerca-de-truper",
       "reasons": [
-        "url:title_slug",
-        "fetch_failed"
+        "url:title_slug"
       ],
       "bucket": 3
     },
     {
-      "url": "https://www.truper.com/acerca-de-truper",
+      "url": "https://www.truper.com/aviso-de-privacidad",
       "reasons": [
         "url:title_slug"
       ],
@@ -25440,8 +25438,7 @@
     {
       "url": "https://www.turkiye.gov.tr/cevre-tarim-ve-hayvancilik-hizmetleri",
       "reasons": [
-        "url:title_slug",
-        "fetch_failed"
+        "url:title_slug"
       ],
       "bucket": 3
     }
@@ -25608,9 +25605,8 @@
       "bucket": 3
     },
     {
-      "url": "https://www.ukr.net/helpful/2026_01_13_manual_2gr_2025.pdf",
+      "url": "https://www.ukr.net/source/24-kanal-628.html",
       "reasons": [
-        "url:numeric_id",
         "url:title_slug"
       ],
       "bucket": 3
@@ -25707,18 +25703,16 @@
       "bucket": 3
     },
     {
-      "url": "https://assets.ups.com/adobe/assets/urn:aaid:aem:2840054d-e7bd-47d5-925d-a940bcd4efe5/original/as/surge-fee-us-en.pdf",
+      "url": "https://solutions.ups.com/virtual-consultation-2023-ussp-page.html",
       "reasons": [
         "url:numeric_id",
-        "url:title_slug",
-        "fetch_failed"
+        "url:title_slug"
       ],
       "bucket": 3
     },
     {
-      "url": "https://assets.ups.com/adobe/assets/urn:aaid:aem:8e6215eb-ca2c-4dc0-a9f4-934365479f83/original/as/us-international-fuel-flyer.pdf",
+      "url": "https://www.ups.com/us/en/business-solutions/business-shipping-tools",
       "reasons": [
-        "url:numeric_id",
         "url:title_slug",
         "fetch_failed"
       ],
@@ -26066,7 +26060,8 @@
     {
       "url": "https://www.wordplays.com/crossword-puzzle-maker",
       "reasons": [
-        "url:title_slug"
+        "url:title_slug",
+        "fetch_failed"
       ],
       "bucket": 3
     },
@@ -26936,6 +26931,14 @@
   ],
   "x.com": [
     {
+      "url": "https://help.x.com/using-x/download-the-x-app",
+      "reasons": [
+        "og:type=article",
+        "url:title_slug"
+      ],
+      "bucket": 1
+    },
+    {
       "url": "https://x.com/privacy",
       "reasons": [
         "og:type=article"
@@ -26948,14 +26951,6 @@
         "og:type=article"
       ],
       "bucket": 2
-    },
-    {
-      "url": "https://help.x.com/rules-and-policies/twitter-cookies",
-      "reasons": [
-        "url:title_slug",
-        "fetch_failed"
-      ],
-      "bucket": 3
     }
   ],
   "x.fap-guru.pro": [
