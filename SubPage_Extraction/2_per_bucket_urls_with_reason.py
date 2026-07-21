@@ -39,9 +39,6 @@ def main():
     with open(output_path, "w", encoding="utf-8") as output_file:
         json.dump(trimmed_by_domain, output_file, ensure_ascii=False, indent=2)
 
-    print("  domains: " + str(len(trimmed_by_domain)))
-    print("  output: " + output_path)
-
 
 if __name__ == "__main__":
     main()
